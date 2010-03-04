@@ -215,7 +215,7 @@ test_find_or_save: ->
 
 
 	db.find_or_save("log", {text: "hello"}, logs, (err, res) ->
-		ok(res, 3, "should save not find these obj")
+		ok(res, 2, "should save not find these obj")
 		db.close()
 	)
 

@@ -23,7 +23,6 @@
   //
   // ----- Predicate syntax -------------
   // The following is the supported predicate syntax:
-  //
   // ----- Prototype objects ----------------
   // You can optionally pass in a prototype object that can be used
   // as a basis to populate the object(s).
@@ -32,19 +31,15 @@
   // table will be used as a prototype.
   // If NoSQLLite cannot find a prototype object it will return all values as strings
   // in a simple JS object.
-  //
   // ------ Prototype object to column mapping 00000000
   // For every column in the results from the predicate
   // the corresponding key on the returned object(s) will be set as follows:
-  //
   // -- properties of type JS String will be set as a string from SQLite TEXT
   // -- properties of type JS Number will be set as a number from SQLite NUMERIC
   // -- properties of type JS Date will be converted from SQLite NUMERIC Unix epoch
   // -- prototype of type JS Boolean will be converted from SQLite TEXT true and false
   // -- Other types (arrays, complex objects) will be converted to JS objects with JSON.parse(column_text)
-  //
   // As always, we will call you back when everything is ready!
-  //
   NoSQLite.prototype.find = function find(table, predicate, callback) {
     var _a, _b, db, err, select, self;
     select = sql.select(table, predicate);
@@ -90,15 +85,11 @@
   // supplied from the objects in the array of course.
   // Just pass in a predicate template, NoSQLite will populate the predicate with
   // values from the corresponding object in the array.
-  //
   //  -- Returns to your callback --
-  //
   // an error if it occurs
   // a simple string indicting success if object or objects didn't exist and were saved
   // the object found or an array of objects found
-  //
   // As always, we will call you back when everything is ready!
-  //
   NoSQLite.prototype.find_or_save = function find_or_save(table, predicate, obj, callback) {
     var find_or_save_one, first_obj, found, num_saved, self, the_predicate, the_rest;
     self = this;
@@ -152,7 +143,6 @@
   // You can pass in an array of objects as well.  If over a certain limit,
   // NoSQLite will batch the inserts together using a SQLite import command
   // which is really fast.
-  //
   // If the objects already exist in the database NoSQL will overwrite them for you with an update
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, callback) {

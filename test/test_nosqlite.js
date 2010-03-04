@@ -234,7 +234,7 @@
     return db.find_or_save("log", {
       text: "hello"
     }, logs, function(err, res) {
-      ok(res, 3, "should save not find these obj");
+      ok(res, 2, "should save not find these obj");
       return db.close();
     });
   };
