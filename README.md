@@ -1,5 +1,5 @@
-NoSQLite
-============
+NoSQLite - SQLite for Javascript
+-------------------------------
 
 The beauty of SQLite is that it is very flexible.  The beauty of Javascript is that it is very flexible.
 
@@ -10,7 +10,7 @@ The goal of NoSQLite is to exploit that even more than other SQLite libraries.
 * simple DSL - just find stuff, save stuff, or find_or_save stuff (ok remove stuff too).
 
 Other goals
-_________
+---------------
 
 * Be HTML 5 compatible
 * Support full text search.
