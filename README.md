@@ -20,5 +20,6 @@ Currently Requires
 ----------------
 
 * [node](http://nodejs.org)
+* [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
 * [node-sqlite](http://github.com/grumdrig/node-sqlite) -  I am working on rewriting this to be async and be more HTML 5 compatible.
 
