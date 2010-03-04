@@ -16,6 +16,11 @@ Other goals
 * Support full text search.
 * Support anything that makes it easier to practically work with SQLite
 
+How to use
+-------------------
+
+See the [nosqlite test](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for now 
+
 Currently Requires
 ----------------
 
