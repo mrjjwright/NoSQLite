@@ -13,7 +13,13 @@
   };
   SQL.prototype.select = function select(table, predicate) {
     var _a, _b, _c, _d, ands_escaped, ands_placeholder, key, key_sql, predicates, sql;
-    sql = "select rowid, * from " + table + " where";
+    sql = "select rowid, * from " + table;
+    if ((!(typeof predicate !== "undefined" && predicate !== null)) || _.isEmpty(predicate)) {
+      this.escaped = sql;
+      this.placeholder = sql;
+      return this;
+    }
+    sql += " where";
     predicates = [];
     //allow the user to pass in a single object or multiple objects
     !_.isArray(predicate) ? predicates.push(predicate) : (predicates = predicate);

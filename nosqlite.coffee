@@ -3,7 +3,7 @@ fs: require "fs"
 require "underscore"
 assert: require "assert"
 sql: require "./sql"
-sqlite: require("sqlite")
+sqlite: require "sqlite"
 assert: require "assert"
 
 # A library to make it as easy as possible to store and retrieve JS objects

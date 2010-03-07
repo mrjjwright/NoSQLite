@@ -21,6 +21,8 @@ ok sql.select("log", {"external_id": true}).escaped, "select rowid, * from log w
 ok sql.select("log", {"external_id": false}).escaped,  "select rowid, * from log where(external_id = 'false')", "should handle predicate value = false"
 ok sql.select("log", {"external_id": false}).placeholder, "select rowid, * from log where(external_id = ?)", "placeholder property should be set"
 ok sql.select("log", {"external_id": false}).values.length, 1, "values property should be array of right size"
+ok sql.select("log", {}).escaped, "select rowid, * from log", "empty object predicate should leave off where clause"
+ok sql.select("log", []).escaped, "select rowid, * from log", "empty array predicate should leave off where clause"
 
 puts "testing insert"
 ok sql.insert("log", {text: "hello", log_type: "mumble"}).placeholder, "insert or replace into log(text,log_type) values (?,?)", "insert placeholder should be correct"

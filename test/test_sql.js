@@ -33,6 +33,8 @@
   ok(sql.select("log", {
     "external_id": false
   }).values.length, 1, "values property should be array of right size");
+  ok(sql.select("log", {}).escaped, "select rowid, * from log", "empty object predicate should leave off where clause");
+  ok(sql.select("log", []).escaped, "select rowid, * from log", "empty array predicate should leave off where clause");
   puts("testing insert");
   ok(sql.insert("log", {
     text: "hello",

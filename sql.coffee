@@ -11,7 +11,13 @@ class SQL
 		
 		
 	select: (table, predicate) ->
-		sql: "select rowid, * from " + table + " where"
+		sql: "select rowid, * from " + table
+		if (not predicate?) or _.isEmpty(predicate)
+			@escaped: sql
+			@placeholder: sql
+			return this
+			
+		sql += " where"
 		predicates: []
 	
 		#allow the user to pass in a single object or multiple objects

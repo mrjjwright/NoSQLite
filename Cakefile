@@ -1,6 +1,4 @@
-require.paths.unshift "/Users/johnw/js/mumblr_machine"
-require.paths.unshift "/Users/johnw/js/mumblr_machine/external"
-require.paths.unshift "/Users/johnw/js/mumblr_machine/db"
+require.paths.unshift "."
 
 fs: require 'fs'
 coffee: require 'coffee-script'
@@ -9,7 +7,6 @@ require "underscore"
 task 'test', 'run the Mumblr Machine test suite', ->
 	process.mixin require 'assert'
 	process.mixin require 'sys'
-	TestSuite: require('async_testing').TestSuite
 	
 	passed_count: 0
 	failed_count: 0
