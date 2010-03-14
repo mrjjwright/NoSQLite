@@ -12,10 +12,12 @@ The goal of NoSQLite is to exploit that even more than other SQLite libraries.
 Other goals
 ---------------
 
-* Support full text search.
-* Support anything that makes it easier to practically work with SQLite
-* Maybe...Be HTML 5 compatible
-* Working on...Core Data compatibility, see the core_data_mode branch.
+* (`core_data_mode` branch) Core Data compatibility so you can work easily with iPhone and Cocoa databases.
+* (`web` branch) A web listener mode so you can invoke this from an HTTP client.
+* (coming) Support syncing 2 copies of a SQLite database (even if one is in Core Data format and even if one is remote, via the web listener interface).
+* (coming) Support full text search.
+* Maybe...Be fully HTML 5 compatible.  I need help with this for those people who want this in the browser.
+* Support anything that makes common uses cases with SQLite easier.
 
 How to use
 -------------------
