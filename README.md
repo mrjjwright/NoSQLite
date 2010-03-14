@@ -15,8 +15,8 @@ Other goals
 * (`core_data_mode` branch) Core Data compatibility so you can work easily with iPhone and Cocoa databases.
 * (`web` branch) A web listener mode so you can invoke this from an HTTP client.
 * (coming) Support syncing 2 copies of a SQLite database (even if one is in Core Data format and even if one is remote, via the web listener interface).
-* (coming) Support full text search.
-* Maybe...Be fully HTML 5 compatible.  I need help with this for those people who want this in the browser.
+* (maybe) Support full text search.
+* (maybe) Be fully HTML 5 compatible.  I need help with this for those people who want this in the browser.
 * Support anything that makes common uses cases with SQLite easier.
 
 How to use
@@ -33,34 +33,34 @@ Open up a reference to your database and pass it to NoSQLite
 	
 	db: nosqlite.connect(sqlite.openDatabaseSync("my_db.sqlite3"))
 
-Now you are ready to start working with nosqlite
+Now you are ready to start working with nosqlite:
 
 	db.save("foo", {x: 4, y: 5})
 	
-This creates a table called foo if it doesn't exist with 2 columns, x and y.  To read these out:
+This creates a table called foo if it doesn't exist with 2 columns, x and y.  To read this object out:
 
-	db.find("foo", {x: 1}, (err, res) ->
+	db.find("foo", {x: 4}, (err, res) ->
 		foo: res
 	)
 	
-You can also save multiple objects in an array
+You can also save multiple objects in an array:
 
 	db.save("foo", [{x: 1, y: 2}, {x: 3, y: 4}])
 	
-You can find stuff with predicates
+You can find using predicates:
 
 	db.find("foo", {"x <=": 5}, (err, results) ->
 		puts results.length
 		# prints 3
 	)
 	
-You can add new attributes
+You can add new attributes:
 	
 	foo.z = 6
 	db.save("foo", foo)
 	#adds a column to your db called z
 	
-A common metaphor when I work with SQLite is to insert some records in the db if they don't already exist.  Of course unique keys can help with this but sometimes they are not available so I added this convenience function
+A common metaphor when I work with SQLite is to insert some records in the db if they don't already exist.  Of course unique keys can help with this but sometimes they are not available so I added this convenience function:
 
 	objs: [{x: 5, y: 2}, {x: 17, y: 20}]
 	db.find_or_save("foo", {x: 1}, objs,  (err, results) ->
@@ -69,7 +69,7 @@ A common metaphor when I work with SQLite is to insert some records in the db if
 		# prints 1
 	)
 	
-The above function applies the form of the predicate to each member of the array (you can use a single object as well).  It then tries to find each object in the array and return it in the results.  If it doesn't find it, NoSQLite will call an "insert or replace" SQLite function on each object.  As usual if any tables or columns don't exist they will be dynamically created.
+The above function applies the form of the predicate to each member of the array (the actual value of the predicate passed doesn't matter and you can use a single object as well).  It then tries to find each object in the array and return it in the results.  If it doesn't find it, NoSQLite will call an "insert or replace" SQLite function on each object.  As usual if any tables or columns don't exist they will be dynamically created.
 
 	
 See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for more info as well as the [docco](http://jashkenas.github.com/docco/) styled docs in the docs directory. 
