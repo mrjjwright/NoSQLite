@@ -22,9 +22,11 @@ Other goals
 How to use
 -------------------
 
-First make sure you have an HTML5 compatible sqlite driver.  [Node-sql](http://github.com/mrjjwright/node-sqlite) is what I (mrjjwright) use and is the only one tested with NoSQLite at the moment.
+Put `nosqlite.js` and `sql.js` in your node.requires path. 
 
-Add necessary requires (examples are shown in CoffeeScript):
+You will also need an HTML5 compatible sqlite driver.  [Node-sql](http://github.com/mrjjwright/node-sqlite) is what I (mrjjwright) use and is the only one tested with NoSQLite at the moment.  If you want to use it, download it, compile it for node and put it in the node.requires. path.
+
+Add necessary requires to the top of your JS (examples are shown in CoffeeScript):
 	
 	sqlite: require("node-sqlite")
 	nosql: require("nosqlite")
