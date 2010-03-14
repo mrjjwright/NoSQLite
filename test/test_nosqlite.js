@@ -1,5 +1,5 @@
 (function(){
-  var nosqlite, remove_file, sqlite, test_find, test_find_or_save, test_save, test_save_bulk, test_save_cd, test_save_multiple;
+  var nosqlite, remove_file, sqlite, test_find, test_find_or_save, test_listen, test_save, test_save_bulk, test_save_cd, test_save_multiple;
   nosqlite = require("./nosqlite");
   sqlite = require("./sqlite");
   remove_file = function remove_file(file) {
@@ -268,5 +268,13 @@
       return db.close();
     });
   };
-  test_save_cd();
+  test_listen = function test_listen() {
+    var db, db_file;
+    db_file = "./test/test_listen.db";
+    remove_file(db_file);
+    db = nosqlite.connect(db_file);
+    return db.listen(5000);
+  };
+  test_save();
+  test_find();
 })();

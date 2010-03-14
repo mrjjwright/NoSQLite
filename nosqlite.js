@@ -225,7 +225,8 @@
   NoSQLite.prototype.close = function close() {
     return this.db.close();
   };
-  //#####################  Error Handling ###########################
+  // Error Handling
+  // ------------------------
   NoSQLite.prototype.handle_error = function handle_error(err) {
     var _a;
     this.parse_error(err);

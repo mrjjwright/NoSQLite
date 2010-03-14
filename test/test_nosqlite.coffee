@@ -242,9 +242,17 @@ test_find_or_save: ->
 		}
 	]
 
-
 	db.find_or_save("log", {text: "hello"}, logs, (err, res) ->
 		ok(res, 2, "should save not find these obj")
 		db.close()
 	)
-test_save_cd()
+	
+test_listen: ->
+	db_file: "./test/test_listen.db"
+	remove_file(db_file)
+
+	db: nosqlite.connect(db_file)
+	db.listen(5000)
+
+test_save()
+test_find()

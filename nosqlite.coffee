@@ -20,7 +20,7 @@ class NoSQLite
 		@db: db 
 		@table_descriptions: []
 		@core_data_mode=core_data_mode
-
+		
 	# Finds an object or objects in the SQLite by running a query 
 	# derived from the supplied predicate on the supplied table.  
 	# 
@@ -201,9 +201,9 @@ class NoSQLite
 	close: ->
 		@db.close()
 	
-	######################  Error Handling ###########################
-
-
+	# Error Handling
+	# ------------------------
+	#
 	handle_error: (err) ->
 		this.parse_error(err)
 		switch @errobj.code
@@ -219,6 +219,7 @@ class NoSQLite
 			@errobj.column = err.split("no column named ")[1].trim()
 		else
 			@errobj.code = UNRECOGNIZED_ERROR
+			
 	
 NO_SUCH_TABLE: 0
 NO_SUCH_COLUMN: 1
