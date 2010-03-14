@@ -33,7 +33,7 @@ Open up a reference to your database and pass it to NoSQLite
 	
 	db: nosqlite.connect(sqlite.openDatabaseSync("my_db.sqlite3"))
 
-Now you are ready to start working with NoSQLite.  NoSQLite is motivated by the idea that if we work simply with a one-to-one mapping between a JS object and a SQLite table (no joins), we can get an awful lot for free, and better than querying capabilities than other NoSQL stores out there.
+Now you are ready to start working with NoSQLite.  NoSQLite is motivated by the idea that if we work simply with a one-to-one mapping between a JS object and a SQLite table (no joins), we can get an awful lot for free, and better querying capabilities than other NoSQL stores out there.
 
 	db.save("foo", {x: 4, y: 5})
 	
