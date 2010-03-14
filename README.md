@@ -41,7 +41,6 @@ This creates a table called foo if it doesn't exist with 2 columns, x and y.  To
 		foo: res
 	)
 	
-
 You can also save multiple objects in an array
 
 	db.save("foo", [{x: 1, y: 2}, {x: 3, y: 4}])
@@ -71,7 +70,6 @@ A common metaphor when I work with SQLite is to insert some records in the db if
 The above function applies the form of the predicate to each member of the array (you can use a single object as well).  It then tries to find each object in the array and return it in the results.  If it doesn't find it, NoSQLite will call an "insert or replace" SQLite function on each object.  As usual if any tables or columns don't exist they will be dynamically created.
 
 	
-
 See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for more info as well as the [docco](http://jashkenas.github.com/docco/) styled docs in the docs directory. 
 
 Currently Requires
