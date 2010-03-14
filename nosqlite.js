@@ -1,44 +1,32 @@
 (function(){
-  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, assert, fs, sql, sqlite, sys;
-  sys = require('sys');
-  fs = require("fs");
+  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, sql;
   require("underscore");
-  assert = require("assert");
   sql = require("./sql");
-  sqlite = require("sqlite");
-  assert = require("assert");
+  // NoSQLite - SQLite for Javascript
+  // ---------------------------------
+  //
   // A library to make it as easy as possible to store and retrieve JS objects
   // from SQLite. Zero-configuration!
-  // Tries to store JS objects as intelligently as possible in SQLite
-  NoSQLite = function NoSQLite(db_file) {
+  // Attempts to store JS objects as intelligently as possible in SQLite.
+  NoSQLite = function NoSQLite(db, core_data_mode) {
     sys.debug("creating instance of NoSQLite");
-    this.db = sqlite.openDatabaseSync(db_file);
-    this.db_file = db_file;
+    this.db = db;
     this.table_descriptions = [];
+    this.core_data_mode = core_data_mode;
     return this;
   };
-  //pass in a valid HTML 5 compatible SQLite object
+  // Pass in a valid HTML 5 compatible SQLite object
+  // Pass in an optional Core Data compatible mode flag.
+  // params:
+  // * A HTML 5 compatible JS object.
+  // * (optional) If set to `true` will create a core data compatible schema.
   // Finds an object or objects in the SQLite by running a query
   // derived from the supplied predicate on the supplied table.
   //
-  // ----- Predicate syntax -------------
+  // Predicate syntax
+  // --------------------------
   // The following is the supported predicate syntax:
-  // ----- Prototype objects ----------------
-  // You can optionally pass in a prototype object that can be used
-  // as a basis to populate the object(s).
-  // A new JS object will first be created from the prototype object
-  // If you do not pass a prototype object the last object saved to that
-  // table will be used as a prototype.
-  // If NoSQLLite cannot find a prototype object it will return all values as strings
-  // in a simple JS object.
-  // ------ Prototype object to column mapping 00000000
-  // For every column in the results from the predicate
-  // the corresponding key on the returned object(s) will be set as follows:
-  // -- properties of type JS String will be set as a string from SQLite TEXT
-  // -- properties of type JS Number will be set as a number from SQLite NUMERIC
-  // -- properties of type JS Date will be converted from SQLite NUMERIC Unix epoch
-  // -- prototype of type JS Boolean will be converted from SQLite TEXT true and false
-  // -- Other types (arrays, complex objects) will be converted to JS objects with JSON.parse(column_text)
+  //
   // As always, we will call you back when everything is ready!
   NoSQLite.prototype.find = function find(table, predicate, callback) {
     var _a, _b, db, err, select, self;
@@ -75,8 +63,8 @@
   // As always with NoSQLite, if any SQL errors are thrown, such as the
   // the table not existing it will create them.
   //
-  //  ---- Passing in an array -----
-  //
+  //  Passing in an array
+  // --------------------------
   // You can pass in an array of objects to this method as well.
   // NoSQLite will try to find and save the first object passed first
   // in order to make sure the database isn't missing table or any columns.
@@ -85,10 +73,11 @@
   // supplied from the objects in the array of course.
   // Just pass in a predicate template, NoSQLite will populate the predicate with
   // values from the corresponding object in the array.
-  //  -- Returns to your callback --
-  // an error if it occurs
-  // a simple string indicting success if object or objects didn't exist and were saved
-  // the object found or an array of objects found
+  //  Returns to your callback
+  // --------------------------
+  // * an error if it occurs
+  // * a simple string indicting success if object or objects didn't exist and were saved
+  // * the object found or an array of objects found
   // As always, we will call you back when everything is ready!
   NoSQLite.prototype.find_or_save = function find_or_save(table, predicate, obj, callback) {
     var find_or_save_one, first_obj, found, num_saved, self, the_predicate, the_rest;
@@ -135,11 +124,11 @@
   // One column is created for each top-level attribute of the object.
   // All columns are stored with SQLite type affinity "TEXT" except
   // dates and numeric Javascript types that are stored as "NUMERIC"
-  // -- Strings are stored as text
-  // -- Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
-  // -- Dates are stored as numbers, Unix epochs since 1970
-  // -- Booleans are stored as numbers, 1 for true or 0 for false
-  // -- Other objects (arrays, complex objects) are simply stored as JSON.stringify text
+  // * Strings are stored as text
+  // * Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
+  // * Dates are stored as numbers, Unix epochs since 1970
+  // * Booleans are stored as numbers, 1 for true or 0 for false
+  // * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
   // You can pass in an array of objects as well.  If over a certain limit,
   // NoSQLite will batch the inserts together using a SQLite import command
   // which is really fast.
@@ -153,13 +142,13 @@
         _a = []; _b = obj;
         for (_c = 0, _d = _b.length; _c < _d; _c++) {
           table_obj = _b[_c];
-          _a.push(sql.insert(table, table_obj));
+          _a.push(sql.insert(table, table_obj, this.core_data_mode));
         }
         return _a;
       }).call(this);
     }
     if (!_.isArray(obj)) {
-      inserts.push(sql.insert(table, obj));
+      inserts.push(sql.insert(table, obj, this.core_data_mode));
     }
     the_obj = _.isArray(obj) ? obj[0] : obj;
     self = this;
@@ -195,9 +184,9 @@
       self.parse_error(err);
       compensating_sql = (function() {
         if ((_f = self.errobj.code) === NO_SUCH_TABLE) {
-          return sql.create_table(table, the_obj).sql;
+          return sql.create_table(table, the_obj, self.core_data_mode).sql;
         } else if (_f === NO_SUCH_COLUMN) {
-          return sql.add_column(table, self.errobj.column).sql;
+          return sql.add_column(table, self.errobj.column, null, self.core_data_mode).sql;
         } else {
           return null;
         }
@@ -262,10 +251,8 @@
   String.prototype.trim = function trim() {
     return this.replace(/^\s*(\S*(\s+\S+)*)\s*$/, "$1");
   };
-  //connect to NoSQLite this way.
-  // give us a callback and we will let you know when we are
-  // ready to serve you.
-  exports.connect = function connect(db_file) {
-    return new NoSQLite(db_file);
+  // connect to NoSQLite this way.
+  exports.connect = function connect(db, core_data_mode) {
+    return new NoSQLite(db, core_data_mode);
   };
 })();

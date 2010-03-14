@@ -4,14 +4,14 @@ require "underscore"
 
 # A simple DSL for creating SQL statements frorm and for JS to SQLLite
 class SQL
-	constructor: ->
+	constructor: (core_data_mode)->
 		@values: []
 		@values_escaped: []
 		@columns: []
-		
-		
+		@core_data_mode: core_data_mode
+			
 	select: (table, predicate) ->
-		sql: "select rowid, * from " + table
+		sql: "select rowid, * from " + @sql_name(table)
 		if (not predicate?) or _.isEmpty(predicate)
 			@escaped: sql
 			@placeholder: sql
@@ -20,9 +20,9 @@ class SQL
 		sql += " where"
 		predicates: []
 	
-		#allow the user to pass in a single object or multiple objects
+		# allow the user to pass in a single object or multiple objects
 		if not _.isArray(predicate) then predicates.push(predicate) else predicates: predicate
-		#generate the where clauses from what is passed in
+		# generate the where clauses from what is passed in
 		ands_escaped: []
 		ands_placeholder: []
 		for predicate in predicates		
@@ -38,12 +38,12 @@ class SQL
 		return this
 
 	insert: (table, obj) ->
-		sql: "insert or replace into " + table
+		sql: "insert or replace into " + @sql_name(table)
 		question_marks: []
 		for key of obj
 			@values.push(obj[key])
 			@values_escaped.push(@convert_to_sqlite(obj[key]))
-			@columns.push(key)
+			@columns.push(@sql_name(key))
 			question_marks.push("?")
 		columns_sep: @columns.join(",")
 		@placeholder: sql + "(" + columns_sep + ") values ("  + question_marks.join(",") + ")"
@@ -60,35 +60,41 @@ class SQL
 	# JS Date -> SQLite NUMERIC (can use Unix epoch)
 	# all others use TEXT, when reading them in we try diff
 	create_table: (table, obj) ->
-		@sql: "create table " + table
+		@sql: "create table " + @sql_name(table)
 		@columns = []
+		
+		if @core_data_mode is true
+			@columns.push("\"Z_PK\" INTEGER PRIMARY KEY AUTOINCREMENT")
+			@columns.push("\"Z_ENT\" INTEGER")
+			@columns.push("\"Z_OPT\" INTEGER")
+			
 		for key of obj
 			value: obj[key]
 			type: if _.isNumber(value) or _.isDate(value) then "NUMERIC" else "TEXT"
-			@columns.push("\"" + key + "\" " + type)
+			@columns.push("\"" + @sql_name(key) + "\" " + type)
 		@sql += "(" + @columns.join(",") + ");"
 		return this
 
 	# returns add_column sql for SQLite
 	# see http://www.sqlite.org/lang_altertable.html
 	add_column: (table, column, type) ->
-		@sql: "alter table '" + table + "' add column '" + column + "'"
+		@sql: "alter table '" + @sql_name(table) + "' add column '" + @sql_name(column) + "'"
 		@sql: @sql + " " + type if type?
 		return this
 	
 				
 	key_to_sql: (key) ->
 		p: key.indexOf(' ')
-		return key + " = " if p is -1
+		return @sql_name(key) + " = " if p is -1
 	
 		operator: key.substr(p + 1)
 		operand: key.substr(0, p)
 	
 		if (['<', '>', '=', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)
-			return operand + " " + operator + " ";
+			return @sql_name(operand) + " " + operator + " ";
 	
 		if operator is '%'
-			return operand + " LIKE ";
+			return @sql_name(operand) + " LIKE ";
 	 
 		throw "Invalid operator " + operator
 
@@ -112,6 +118,15 @@ class SQL
 			
 		return populated_predicates[0] if not _.isArray(predicate)
 		return populated_predicates
+	
+	# Checks if in Core Data mode
+	# converts the name to uppercase and prepends a Z if so
+	# else just returns the name
+	sql_name: (sql_name) ->
+		if @core_data_mode is true
+			sql_name: sql_name.replace(/_/g, "")
+			return "Z${sql_name.toUpperCase()}"
+		return sql_name
 		
 	convert_to_sqlite: (value) ->
 		if not value? then return "NULL"
@@ -134,11 +149,11 @@ class SQL
 			return value
 	
 process.mixin(exports, {
-  select: (table, predicate) -> new SQL().select(table, predicate)
-  insert: (table, obj) -> new SQL().insert(table, obj)
-  create_table: (table, obj) -> new SQL().create_table(table, obj)
-  add_column: (table, column, type) -> new SQL().add_column(table, column, type)
-  convert_to_sqlite: (value) -> new SQL().convert_to_sqlite(value)
-  convert_from_sqlite: (value, prototype_value) -> new SQL().convert_from_sqlite(value, prototype_value)
-  populate_predicate: (predicate, obj) -> new SQL().populate_predicate(predicate, obj)
+  select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
+  insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
+  create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
+  add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
+  convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
+  convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
+  populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
 })

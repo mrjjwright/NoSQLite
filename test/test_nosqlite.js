@@ -1,6 +1,7 @@
 (function(){
-  var nosqlite, remove_file, test_find, test_find_or_save, test_save, test_save_bulk, test_save_multiple;
-  nosqlite = require("nosqlite");
+  var nosqlite, remove_file, sqlite, test_find, test_find_or_save, test_save, test_save_bulk, test_save_cd, test_save_multiple;
+  nosqlite = require("./nosqlite");
+  sqlite = require("./sqlite");
   remove_file = function remove_file(file) {
     try {
       return fs.unlinkSync(file);
@@ -12,7 +13,7 @@
     var db1, db_file, log;
     db_file = "./test/test_find.db";
     remove_file(db_file);
-    db1 = nosqlite.connect(db_file);
+    db1 = nosqlite.connect(sqlite.openDatabaseSync(db_file));
     log = {
       text: "hello",
       occurred_at: new Date().getTime(),
@@ -41,11 +42,11 @@
       });
     });
   };
-  test_save = function test_save() {
+  test_save_cd = function test_save_cd() {
     var db, db_file, log;
-    db_file = "./test/test_save.db";
+    db_file = "./test/test_save_cd.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file);
+    db = nosqlite.connect(sqlite.openDatabaseSync(db_file), true);
     log = {
       text: "hello",
       occurred_at: new Date().getTime(),
@@ -65,7 +66,36 @@
         text: "some crazy object"
       }
     };
-    return db.save("log", log, function(res) {
+    return db.save("log", log, function(err, res) {
+      puts(res);
+      return ok(res, "success", "should save single obj");
+    });
+  };
+  test_save = function test_save() {
+    var db, db_file, log;
+    db_file = "./test/test_save.db";
+    remove_file(db_file);
+    db = nosqlite.connect(sqlite.openDatabaseSync(db_file));
+    log = {
+      text: "hello",
+      occurred_at: new Date().getTime(),
+      created_at: new Date().getTime(),
+      updated_at: new Date().getTime(),
+      source: "string1",
+      log_type: "string1",
+      geo_lat: "string1",
+      geo_long: "string1",
+      metric: 5,
+      external_id: 10,
+      level: 5,
+      readable_metric: "5 miles",
+      facts: ["hello", "hello", "hello1"],
+      original: {
+        id: 1,
+        text: "some crazy object"
+      }
+    };
+    return db.save("log", log, function(err, res) {
       puts(res);
       return ok(res, "success", "should save single obj");
     });
@@ -139,7 +169,7 @@
   test_save_bulk = function test_save_bulk() {
     var _a, _b, _c, _d, db, db_file, i, log, logs;
     db_file = "./test/test_save_bulk.db";
-    remove_file(db_file);
+    //remove_file(db_file)
     db = nosqlite.connect(db_file);
     log = {
       text: "hello",
@@ -161,7 +191,7 @@
       }
     };
     logs = [];
-    _c = 1; _d = 25000;
+    _c = 1; _d = 250000;
     for (_b = 0, i = _c; (_c <= _d ? i <= _d : i >= _d); (_c <= _d ? i += 1 : i -= 1), _b++) {
       logs.push(_.clone(log));
     }
@@ -238,5 +268,5 @@
       return db.close();
     });
   };
-  test_find_or_save();
+  test_save_cd();
 })();

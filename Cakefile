@@ -3,7 +3,11 @@ require.paths.unshift "."
 fs: require 'fs'
 coffee: require 'coffee-script'
 require "underscore"
- 
+
+task 'doc:source', 'rebuild the internal documentation', ->
+  exec 'docco *.coffee', (err) ->
+    throw err if err
+
 task 'test', 'run the Mumblr Machine test suite', ->
 	process.mixin require 'assert'
 	process.mixin require 'sys'

@@ -23,11 +23,12 @@ ok sql.select("log", {"external_id": false}).placeholder, "select rowid, * from 
 ok sql.select("log", {"external_id": false}).values.length, 1, "values property should be array of right size"
 ok sql.select("log", {}).escaped, "select rowid, * from log", "empty object predicate should leave off where clause"
 ok sql.select("log", []).escaped, "select rowid, * from log", "empty array predicate should leave off where clause"
+ok sql.select("log", {"external_id": 45}, true).escaped, "select rowid, * from ZLOG where(ZEXTERNALID = 45)", "should convert to Core Data mode"
 
 puts "testing insert"
 ok sql.insert("log", {text: "hello", log_type: "mumble"}).placeholder, "insert or replace into log(text,log_type) values (?,?)", "insert placeholder should be correct"
 ok sql.insert("log", {text: "hello", log_type: "mumble"}).escaped, "insert or replace into log(text,log_type) values ('hello','mumble')", "insert escaped should be correct"
-
+ok sql.insert("log", {text: "hello", log_type: "mumble"}, true).placeholder, "insert or replace into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode"
 
 puts "testing create table"
 log: {
@@ -44,6 +45,13 @@ log: {
 }
 table_sql: 'create table log("text" TEXT,"updated_at" NUMERIC,"source" TEXT,"metric" NUMERIC,"readable_metric" TEXT,"keys" TEXT,"original" TEXT);'
 ok sql.create_table("log", log).sql, table_sql, "should create simple create sql"
+core_data_create_sql: 'create table ZLOG("Z_PK" INTEGER PRIMARY KEY AUTOINCREMENT,"Z_ENT" INTEGER,"Z_OPT" INTEGER,"ZTEXT" TEXT,"ZUPDATEDAT" NUMERIC,"ZSOURCE" TEXT,"ZMETRIC" NUMERIC,"ZREADABLEMETRIC" TEXT,"ZKEYS" TEXT,"ZORIGINAL" TEXT);'
+ok sql.create_table("log", log, true).sql, core_data_create_sql, "should create core data sql create table sql properly"
+
+puts "testing alter table"
+ok sql.add_column("log", "col1", "NUMERIC").sql, "alter table 'log' add column 'col1' NUMERIC", "should produce valid add column sql"
+ok sql.add_column("log", "col1", "NUMERIC", true).sql, "alter table 'ZLOG' add column 'ZCOL1' NUMERIC", "should produce valid add column sql for Core Data"
+
 
 puts "testing populate_predicate"
 predicate: sql.populate_predicate({external_id: 45} ,{some_other: 33, external_id: 46})

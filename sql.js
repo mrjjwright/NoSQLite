@@ -5,15 +5,16 @@
   fs = require("fs");
   require("underscore");
   // A simple DSL for creating SQL statements frorm and for JS to SQLLite
-  SQL = function SQL() {
+  SQL = function SQL(core_data_mode) {
     this.values = [];
     this.values_escaped = [];
     this.columns = [];
+    this.core_data_mode = core_data_mode;
     return this;
   };
   SQL.prototype.select = function select(table, predicate) {
     var _a, _b, _c, _d, ands_escaped, ands_placeholder, key, key_sql, predicates, sql;
-    sql = "select rowid, * from " + table;
+    sql = "select rowid, * from " + this.sql_name(table);
     if ((!(typeof predicate !== "undefined" && predicate !== null)) || _.isEmpty(predicate)) {
       this.escaped = sql;
       this.placeholder = sql;
@@ -21,9 +22,9 @@
     }
     sql += " where";
     predicates = [];
-    //allow the user to pass in a single object or multiple objects
+    // allow the user to pass in a single object or multiple objects
     !_.isArray(predicate) ? predicates.push(predicate) : (predicates = predicate);
-    //generate the where clauses from what is passed in
+    // generate the where clauses from what is passed in
     ands_escaped = [];
     ands_placeholder = [];
     _a = predicates;
@@ -44,13 +45,13 @@
   };
   SQL.prototype.insert = function insert(table, obj) {
     var _a, columns_sep, key, question_marks, sql;
-    sql = "insert or replace into " + table;
+    sql = "insert or replace into " + this.sql_name(table);
     question_marks = [];
     _a = obj;
     for (key in _a) { if (__hasProp.call(_a, key)) {
       this.values.push(obj[key]);
       this.values_escaped.push(this.convert_to_sqlite(obj[key]));
-      this.columns.push(key);
+      this.columns.push(this.sql_name(key));
       question_marks.push("?");
     }}
     columns_sep = this.columns.join(",");
@@ -69,13 +70,18 @@
   // all others use TEXT, when reading them in we try diff
   SQL.prototype.create_table = function create_table(table, obj) {
     var _a, key, type, value;
-    this.sql = "create table " + table;
+    this.sql = "create table " + this.sql_name(table);
     this.columns = [];
+    if (this.core_data_mode === true) {
+      this.columns.push("\"Z_PK\" INTEGER PRIMARY KEY AUTOINCREMENT");
+      this.columns.push("\"Z_ENT\" INTEGER");
+      this.columns.push("\"Z_OPT\" INTEGER");
+    }
     _a = obj;
     for (key in _a) { if (__hasProp.call(_a, key)) {
       value = obj[key];
       type = _.isNumber(value) || _.isDate(value) ? "NUMERIC" : "TEXT";
-      this.columns.push("\"" + key + "\" " + type);
+      this.columns.push("\"" + this.sql_name(key) + "\" " + type);
     }}
     this.sql += "(" + this.columns.join(",") + ");";
     return this;
@@ -83,7 +89,7 @@
   // returns add_column sql for SQLite
   // see http://www.sqlite.org/lang_altertable.html
   SQL.prototype.add_column = function add_column(table, column, type) {
-    this.sql = "alter table '" + table + "' add column '" + column + "'";
+    this.sql = "alter table '" + this.sql_name(table) + "' add column '" + this.sql_name(column) + "'";
     if ((typeof type !== "undefined" && type !== null)) {
       this.sql = this.sql + " " + type;
     }
@@ -93,15 +99,15 @@
     var operand, operator, p;
     p = key.indexOf(' ');
     if (p === -1) {
-      return key + " = ";
+      return this.sql_name(key) + " = ";
     }
     operator = key.substr(p + 1);
     operand = key.substr(0, p);
     if ((['<', '>', '=', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)) {
-      return operand + " " + operator + " ";
+      return this.sql_name(operand) + " " + operator + " ";
     }
     if (operator === '%') {
-      return operand + " LIKE ";
+      return this.sql_name(operand) + " LIKE ";
     }
     throw "Invalid operator " + operator;
   };
@@ -131,6 +137,16 @@
       return populated_predicates[0];
     }
     return populated_predicates;
+  };
+  // Checks if in Core Data mode
+  // converts the name to uppercase and prepends a Z if so
+  // else just returns the name
+  SQL.prototype.sql_name = function sql_name(sql_name) {
+    if (this.core_data_mode === true) {
+      sql_name = sql_name.replace(/_/g, "");
+      return "Z" + (sql_name.toUpperCase());
+    }
+    return sql_name;
   };
   SQL.prototype.convert_to_sqlite = function convert_to_sqlite(value) {
     var str_value;
@@ -162,26 +178,26 @@
     }
   };
   process.mixin(exports, {
-    select: function select(table, predicate) {
-      return new SQL().select(table, predicate);
+    select: function select(table, predicate, core_data_mode) {
+      return new SQL(core_data_mode).select(table, predicate);
     },
-    insert: function insert(table, obj) {
-      return new SQL().insert(table, obj);
+    insert: function insert(table, obj, core_data_mode) {
+      return new SQL(core_data_mode).insert(table, obj);
     },
-    create_table: function create_table(table, obj) {
-      return new SQL().create_table(table, obj);
+    create_table: function create_table(table, obj, core_data_mode) {
+      return new SQL(core_data_mode).create_table(table, obj);
     },
-    add_column: function add_column(table, column, type) {
-      return new SQL().add_column(table, column, type);
+    add_column: function add_column(table, column, type, core_data_mode) {
+      return new SQL(core_data_mode).add_column(table, column, type);
     },
-    convert_to_sqlite: function convert_to_sqlite(value) {
-      return new SQL().convert_to_sqlite(value);
+    convert_to_sqlite: function convert_to_sqlite(value, core_data_mode) {
+      return new SQL(core_data_mode).convert_to_sqlite(value);
     },
-    convert_from_sqlite: function convert_from_sqlite(value, prototype_value) {
-      return new SQL().convert_from_sqlite(value, prototype_value);
+    convert_from_sqlite: function convert_from_sqlite(value, prototype_value, core_data_mode) {
+      return new SQL(core_data_mode).convert_from_sqlite(value, prototype_value);
     },
-    populate_predicate: function populate_predicate(predicate, obj) {
-      return new SQL().populate_predicate(predicate, obj);
+    populate_predicate: function populate_predicate(predicate, obj, core_data_mode) {
+      return new SQL(core_data_mode).populate_predicate(predicate, obj);
     }
   });
 })();

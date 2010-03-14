@@ -1,0 +1,65 @@
+<!DOCTYPE html>  <html> <head>   <title>nosqlite.coffee</title>   <meta http-equiv="content-type" content="text/html; charset=UTF-8">   <link rel="stylesheet" media="all" href="docco.css" /> </head> <body>   <div id="container">     <div id="background"></div>            <div id="jump_to">         Jump To &hellip;         <div id="jump_wrapper">           <div id="jump_page">                                           <a class="source" href="nosqlite.html">                 nosqlite.coffee               </a>                                           <a class="source" href="sql.html">                 sql.coffee               </a>                        </div>         </div>       </div>          <table cellpadding="0" cellspacing="0">       <thead>         <tr>           <th class="docs">             <h1>               nosqlite.coffee             </h1>           </th>           <th class="code">           </th>         </tr>       </thead>       <tbody>                               <tr id="section-1">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-1">#</a>               </div>                            </td>             <td class="code">               <div class="highlight"><pre></pre></div>             </td>           </tr>                               <tr id="section-2">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-2">#</a>               </div>               <h2>NoSQLite - SQLite for Javascript</h2>
+
+<p>A library to make it as easy as possible to store and retrieve JS objects
+from SQLite. Zero-configuration! <br />
+Attempts to store JS objects as intelligently as possible in SQLite.</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-3">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-3">#</a>               </div>               <p>Pass in a valid HTML 5 compatible SQLite object
+Pass in an optional Core Data compatible mode flag.
+params:
+* A HTML 5 compatible JS object.
+* (optional) If set to <code>true</code> will create a core data compatible schema.</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-4">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-4">#</a>               </div>               <p>Finds an object or objects in the SQLite by running a query 
+derived from the supplied predicate on the supplied table.  </p>
+
+<h2>Predicate syntax</h2>
+
+<p>The following is the supported predicate syntax:</p>
+
+<p>As always, we will call you back when everything is ready!</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-5">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-5">#</a>               </div>               <p>sys.puts(sys.inspect(select))</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-6">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-6">#</a>               </div>               <p>Find the object in the database identified by the predicate
+if it exists.  Otherwise, saves it.
+Use this method if you need to save stuff in SQLite if it's not already there.
+This is useful for times you aren't sure if the object is already in the db.
+and you don't have the rowid on the obj (othewise you could just do a save, which
+does a insert or replace).
+One e.g., syncing your db to some other data source.
+As always with NoSQLite, if any SQL errors are thrown, such as the
+the table not existing it will create them.</p>
+
+<h2> Passing in an array</h2>
+
+<p>You can pass in an array of objects to this method as well.
+NoSQLite will try to find and save the first object passed first <br />
+in order to make sure the database isn't missing table or any columns.
+If that works, NoSQLite will find or save the rest of them.
+The supplied predicate will be used on each object, with the value
+supplied from the objects in the array of course.
+Just pass in a predicate template, NoSQLite will populate the predicate with
+values from the corresponding object in the array.</p>
+
+<h2> Returns to your callback</h2>
+
+<ul>
+<li>an error if it occurs</li>
+<li>a simple string indicting success if object or objects didn't exist and were saved</li>
+<li>the object found or an array of objects found</li>
+</ul>
+
+<p>As always, we will call you back when everything is ready!</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-7">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-7">#</a>               </div>               <p>debug "result of find are: " + inspect(results)</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-8">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-8">#</a>               </div>               <p>The error could just be that the table doesn't exist in which 
+save will take care of it.</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-9">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-9">#</a>               </div>               <p>Stores an object or objects in SQLite even if the table doesn't exist.
+NoSQLite will create the table for you.
+One table is created for the object with the name supplied in param table.
+One column is created for each top-level attribute of the object.
+All columns are stored with SQLite type affinity "TEXT" except
+dates and numeric Javascript types that are stored as "NUMERIC"
+* Strings are stored as text
+* Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
+* Dates are stored as numbers, Unix epochs since 1970
+* Booleans are stored as numbers, 1 for true or 0 for false
+* Other objects (arrays, complex objects) are simply stored as JSON.stringify text
+You can pass in an array of objects as well.  If over a certain limit,
+NoSQLite will batch the inserts together using a SQLite import command
+which is really fast.</p>
+
+<p>If the objects already exist in the database NoSQL will overwrite them for you with an update
+As always, we'll call you back when everything is ready!</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-10">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-10">#</a>               </div>               <p>process the rest</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-11">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-11">#</a>               </div>               <p>try the first insert first to see if there any errors
+then the rest
+this all happens within one sql transaction to make it really fast</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-12">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-12">#</a>               </div>               <p>closes any underlying SQLite connection
+currently, this means closes the underlying SQLite db process</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-13">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-13">#</a>               </div>               <h6>###############  Error Handling</h6>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                               <tr id="section-14">             <td class="docs">               <div class="octowrap">                 <a class="octothorpe" href="#section-14">#</a>               </div>               <p>connect to NoSQLite this way.</p>             </td>             <td class="code">               <div class="highlight"><pre>undefined</pre></div>             </td>           </tr>                </tbody>     </table>   </div> </body> </html> 
