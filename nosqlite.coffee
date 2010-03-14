@@ -219,6 +219,38 @@ class NoSQLite
 			@errobj.column = err.split("no column named ")[1].trim()
 		else
 			@errobj.code = UNRECOGNIZED_ERROR
+
+
+	# Web API
+	# --------------------------------------
+	# Starts a webserver on the supplied port to serve http requests
+	# for the instance's associated database.
+	# If NoSQLite has already started a webserver on that port
+	# this method returns silently.	
+	listen: (port) ->
+		http: require "http" if not http?
+		obj_json: ""
+		self: this	
+		http.createServer( (request, response) ->
+			# Parse the url to see what the user wants to do
+			url: require("url").parse(request.url, true)
+			table: url.query.table
+			request.addListener"data", (data) ->
+				obj_json += data
+			request.addListener "done", ->
+				obj: JSON.parse(obj_json)
+				switch url.query.method
+					when "save" 
+						self.save(table, obj, (err, res) ->
+							response.writeHead(200, {"Content-Type": "text/plain"})
+							response.write("Success")
+							response.close();
+						 )
+					else
+						response.writeHead(200, {"Content-Type": "text/plain"})
+						response.write(obj_json + "\n")
+						response.close();
+		 ).listen(port)
 			
 	
 NO_SUCH_TABLE: 0

@@ -246,6 +246,48 @@
       return (this.errobj.code = UNRECOGNIZED_ERROR);
     }
   };
+  // Web API
+  // --------------------------------------
+  // Starts a webserver on the supplied port to serve http requests
+  // for the instance's associated database.
+  // If NoSQLite has already started a webserver on that port
+  // this method returns silently.
+  NoSQLite.prototype.listen = function listen(port) {
+    var http, obj_json, self;
+    if (!(typeof http !== "undefined" && http !== null)) {
+      http = require("http");
+    }
+    obj_json = "";
+    self = this;
+    return http.createServer(function(request, response) {
+      var table, url;
+      // Parse the url to see what the user wants to do
+      url = require("url").parse(request.url, true);
+      table = url.query.table;
+      request.addListener("data", function(data) {
+        return obj_json += data;
+      });
+      return request.addListener("done", function() {
+        var _a, obj;
+        obj = JSON.parse(obj_json);
+        if ((_a = url.query.method) === "save") {
+          return self.save(table, obj, function(err, res) {
+            response.writeHead(200, {
+              "Content-Type": "text/plain"
+            });
+            response.write("Success");
+            return response.close();
+          });
+        } else {
+          response.writeHead(200, {
+            "Content-Type": "text/plain"
+          });
+          response.write(obj_json + "\n");
+          return response.close();
+        }
+      });
+    }).listen(port);
+  };
   NO_SUCH_TABLE = 0;
   NO_SUCH_COLUMN = 1;
   UNRECOGNIZED_ERROR = 99;

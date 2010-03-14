@@ -254,5 +254,4 @@ test_listen: ->
 	db: nosqlite.connect(db_file)
 	db.listen(5000)
 
-test_save()
-test_find()
+test_listen()

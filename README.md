@@ -74,6 +74,33 @@ The above function applies the form of the predicate to each member of the array
 	
 See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for more info as well as the [docco](http://jashkenas.github.com/docco/) styled docs in the docs directory. 
 
+Web mode
+-------------------
+
+You can start nosqlite in web mode by executing
+
+    nosqlite.listen(5000, delegate)
+
+This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and delegate are optional.  The portdefaults to 5000 and delegate will be explained below.  
+
+If you have a node based webserver (e.g. a secure server) already running servicing other requests and you simply want to service NoSQLite web requests you can pass
+
+	nosqlite.web_handler(request, response, delegate)
+	
+as a callback to your node webserver, or by invoking it directly, where `request` and `response` are node `http.ServerRequest` and `http.ServerResponse` objects respectively.
+
+Here is how to use the web API.
+
+The API only reads query params and the HTTP post body so you can map it to any url you want to.
+
+Query Params
+
+* __db__ (optional) - All requests by default will be executed against the db passed into NoSQLite when it is created.  If the param `db` is supplied then NoSQLite will invoke a method against the named sqlite file using the delegate to resolve the path name to the file (see delegate documentation below). 
+
+* __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
+
+
+
 Currently Requires
 ----------------
 
