@@ -12,9 +12,10 @@ The goal of NoSQLite is to exploit that even more than other SQLite libraries.
 Other goals
 ---------------
 
-* Be HTML 5 compatible
 * Support full text search.
 * Support anything that makes it easier to practically work with SQLite
+* Maybe...Be HTML 5 compatible
+* Working on...Core Data compatibility, see the core_data_mode branch.
 
 How to use
 -------------------
