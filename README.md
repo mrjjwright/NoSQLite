@@ -13,7 +13,7 @@ Other goals
 ---------------
 
 * (`core_data_mode` branch) Core Data compatibility so you can work easily with iPhone and Cocoa databases.
-* (`web` branch) A web listener mode so you can invoke this from an HTTP client.
+* (`web` branch) A web listener mode using either websockets and/or a simple node based http server and eventually web worker compliant.  Enables NoSQLite to be used remotely or in use cases like syncing 2 SQLite databases.
 * (coming) Support syncing 2 copies of a SQLite database (even if one is in Core Data format and even if one is remote, via the web listener interface).
 * (maybe) Support full text search.
 * (maybe) Be fully HTML 5 compatible.  I need help with this for those people who want this in the browser.
@@ -83,7 +83,7 @@ You can start nosqlite in web mode by executing
 
     nosqlite.listen(5000, delegate)
 
-This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and delegate are optional.  The portdefaults to 5000 and delegate will be explained below.  
+This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and delegate are optional.  The port defaults to 5000 and delegate will be explained below.  
 
 If you have a node based webserver (e.g. a secure server) already running servicing other requests and you simply want to service NoSQLite web requests you can pass
 
