@@ -13,7 +13,6 @@ Other goals
 ---------------
 
 * (`core_data_mode` branch) Core Data compatibility so you can work easily with iPhone and Cocoa databases.
-* (`web` branch) A web listener mode using either websockets and/or a simple node based http server and eventually web worker compliant.  Enables NoSQLite to be used remotely or in use cases like syncing 2 SQLite databases.
 * (coming) Support syncing 2 copies of a SQLite database (even if one is in Core Data format and even if one is remote, via the web listener interface).
 * (maybe) Support full text search.
 * (maybe) Be fully HTML 5 compatible.  I need help with this for those people who want this in the browser.
@@ -92,8 +91,6 @@ The API only reads query params and the HTTP post body so you can map it to any 
 Global Query Params
 -----------------------
 
-* __db__ (optional) - All requests by default will be executed against the db passed into NoSQLite when it is created.  If the param `db` is supplied then NoSQLite will invoke a method against the named sqlite file using the delegate to resolve the path name to the file (see delegate documentation below). 
-
 * __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
 
 * __method__ - The method on NoSQLite to call.  One of `find`, `save`, `find_or_save_all`,  `push` or `pull`. 
@@ -106,6 +103,7 @@ Web API Methods
 * __find__ - `?table=foo&method=find` - Pass the predicate as a JSON string in the body.  Returns back either an array of found results in JSON format.
 * __find_or_save__ - `?table=foo&method=find_or_save` - Pass an array with 2 elements.  The first is the predicate, and the second the obj or objects to save if not found.  Returns back either an array of found results in JSON format or the string "success".
 
+See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for an example.
 
 Currently Requires
 ========================
