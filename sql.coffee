@@ -71,6 +71,8 @@ class SQL
 		for key of obj
 			value: obj[key]
 			type: if _.isNumber(value) or _.isDate(value) then "NUMERIC" else "TEXT"
+			if key is "guid"
+				type: "VARCHAR UNIQUE NOT NULL" 
 			@columns.push("\"" + @sql_name(key) + "\" " + type)
 		@sql += "(" + @columns.join(",") + ");"
 		return this

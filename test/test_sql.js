@@ -1,5 +1,5 @@
 (function(){
-  var core_data_create_sql, log, predicate, simple_obj, sql, table_sql;
+  var core_data_create_sql, log, predicate, simple_obj, sql, table_sql, table_sql_guid;
   sql = require("sql");
   ok(sql.convert_to_sqlite(null), "NULL", "null should convert to NULL");
   ok(sql.convert_to_sqlite(45), 45, "Number should convert to number without quotes");
@@ -68,6 +68,9 @@
   ok(sql.create_table("log", log).sql, table_sql, "should create simple create sql");
   core_data_create_sql = 'create table ZLOG("Z_PK" INTEGER PRIMARY KEY AUTOINCREMENT,"Z_ENT" INTEGER,"Z_OPT" INTEGER,"ZTEXT" TEXT,"ZUPDATEDAT" NUMERIC,"ZSOURCE" TEXT,"ZMETRIC" NUMERIC,"ZREADABLEMETRIC" TEXT,"ZKEYS" TEXT,"ZORIGINAL" TEXT);';
   ok(sql.create_table("log", log, true).sql, core_data_create_sql, "should create core data sql create table sql properly");
+  table_sql_guid = 'create table log("text" TEXT,"updated_at" NUMERIC,"source" TEXT,"metric" NUMERIC,"readable_metric" TEXT,"keys" TEXT,"original" TEXT,"guid" VARCHAR UNIQUE NOT NULL);';
+  log.guid = "x";
+  ok(sql.create_table("log", log).sql, table_sql_guid, "should create unique column for guid");
   puts("testing alter table");
   ok(sql.add_column("log", "col1", "NUMERIC").sql, "alter table 'log' add column 'col1' NUMERIC", "should produce valid add column sql");
   ok(sql.add_column("log", "col1", "NUMERIC", true).sql, "alter table 'ZLOG' add column 'ZCOL1' NUMERIC", "should produce valid add column sql for Core Data");

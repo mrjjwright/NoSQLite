@@ -2,17 +2,24 @@
   var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, sql;
   require("underscore");
   sql = require("./sql");
+  process.mixin(require("./uuid"));
   // NoSQLite - SQLite for Javascript
   // ---------------------------------
   //
   // A library to make it as easy as possible to store and retrieve JS objects
   // from SQLite. Zero-configuration!
   // Attempts to store JS objects as intelligently as possible in SQLite.
-  NoSQLite = function NoSQLite(db, core_data_mode) {
+  NoSQLite = function NoSQLite(db, options) {
     sys.debug("creating instance of NoSQLite");
     this.db = db;
     this.table_descriptions = [];
-    this.core_data_mode = core_data_mode;
+    this.options = {
+      core_data_mode: false,
+      no_guid: false
+    };
+    if ((typeof options !== "undefined" && options !== null)) {
+      this.options = _.extend(this.options, options);
+    }
     return this;
   };
   // Pass in a valid HTML 5 compatible SQLite object
@@ -35,9 +42,9 @@
     self = this;
     table = table;
     predicate = predicate;
+    this.hash_flag = true;
     try {
       return db.query(select.escaped, function(select) {
-        //sys.puts(sys.inspect(select))
         return callback(null, select);
       });
     } catch (the_err) {
@@ -135,20 +142,32 @@
   // If the objects already exist in the database NoSQL will overwrite them for you with an update
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, callback) {
-    var _a, _b, _c, _d, array_of_inserts, db, errback, first_one, insert_into_db, inserts, process_rest, self, table_obj, the_obj;
+    var _a, _b, _c, _d, _e, _f, _g, array_of_inserts, db, errback, first_one, insert_into_db, inserts, o, process_rest, self, table_obj, the_obj;
+    //augment object with guid unless options say not to
+    if (this.options_no_guid === false) {
+      if (!_.isArray(obj)) {
+        obj.guid = uuid();
+      } else {
+        _a = obj;
+        for (_b = 0, _c = _a.length; _b < _c; _b++) {
+          o = _a[_b];
+          o.guid = uuid();
+        }
+      }
+    }
     inserts = [];
     if (_.isArray(obj)) {
       inserts = (function() {
-        _a = []; _b = obj;
-        for (_c = 0, _d = _b.length; _c < _d; _c++) {
-          table_obj = _b[_c];
-          _a.push(sql.insert(table, table_obj, this.core_data_mode));
+        _d = []; _e = obj;
+        for (_f = 0, _g = _e.length; _f < _g; _f++) {
+          table_obj = _e[_f];
+          _d.push(sql.insert(table, table_obj, this.options.core_data_mode));
         }
-        return _a;
+        return _d;
       }).call(this);
     }
     if (!_.isArray(obj)) {
-      inserts.push(sql.insert(table, obj, this.core_data_mode));
+      inserts.push(sql.insert(table, obj, this.options.core_data_mode));
     }
     the_obj = _.isArray(obj) ? obj[0] : obj;
     self = this;
@@ -178,15 +197,15 @@
       }
     };
     errback = function errback(tx, the_err) {
-      var _e, _f, compensating_sql, err;
-      err = (typeof the_err !== "undefined" && the_err !== null) && (typeof (_e = the_err.message) !== "undefined" && _e !== null) ? the_err.message : the_err;
+      var _h, _i, compensating_sql, err;
+      err = (typeof the_err !== "undefined" && the_err !== null) && (typeof (_h = the_err.message) !== "undefined" && _h !== null) ? the_err.message : the_err;
       debug("received error: " + err);
       self.parse_error(err);
       compensating_sql = (function() {
-        if ((_f = self.errobj.code) === NO_SUCH_TABLE) {
-          return sql.create_table(table, the_obj, self.core_data_mode).sql;
-        } else if (_f === NO_SUCH_COLUMN) {
-          return sql.add_column(table, self.errobj.column, null, self.core_data_mode).sql;
+        if ((_i = self.errobj.code) === NO_SUCH_TABLE) {
+          return sql.create_table(table, the_obj, self.options.core_data_mode).sql;
+        } else if (_i === NO_SUCH_COLUMN) {
+          return sql.add_column(table, self.errobj.column, null, self.options.core_data_mode).sql;
         } else {
           return null;
         }
@@ -201,11 +220,11 @@
       return debug("exiting errback");
     };
     insert_into_db = function insert_into_db(tx) {
-      var _e, _f, _g, _h, insert;
-      _e = []; _f = array_of_inserts;
-      for (_g = 0, _h = _f.length; _g < _h; _g++) {
-        insert = _f[_g];
-        _e.push((function() {
+      var _h, _i, _j, _k, insert;
+      _h = []; _i = array_of_inserts;
+      for (_j = 0, _k = _i.length; _j < _k; _j++) {
+        insert = _i[_j];
+        _h.push((function() {
           try {
             return tx.executeSql(insert.escaped);
           } catch (error2) {
@@ -213,7 +232,7 @@
           }
         }).call(this));
       }
-      return _e;
+      return _h;
     };
     // try the first insert first to see if there any errors
     // then the rest
@@ -248,45 +267,82 @@
   };
   // Web API
   // --------------------------------------
+  NoSQLite.prototype.write_res = function write_res(response, err, result) {
+    if ((typeof err !== "undefined" && err !== null)) {
+      response.writeHead(500, {
+        "Content-Type": "text/plain"
+      });
+      response.write(err);
+    } else {
+      response.writeHead(200, {
+        "Content-Type": "text/plain"
+      });
+      response.write(JSON.stringify(result));
+    }
+    return response.close();
+  };
   // Starts a webserver on the supplied port to serve http requests
   // for the instance's associated database.
   // If NoSQLite has already started a webserver on that port
   // this method returns silently.
-  NoSQLite.prototype.listen = function listen(port) {
-    var http, obj_json, self;
+  NoSQLite.prototype.listen = function listen(port, host) {
+    var http, self, server;
+    if (!(typeof host !== "undefined" && host !== null)) {
+      host = "127.0.0.1";
+    }
+    if (!(typeof port !== "undefined" && port !== null)) {
+      port = 5000;
+    }
     if (!(typeof http !== "undefined" && http !== null)) {
       http = require("http");
     }
-    obj_json = "";
     self = this;
-    return http.createServer(function(request, response) {
-      var table, url;
-      // Parse the url to see what the user wants to do
+    server = http.createServer(function(request, response) {
+      var _a, _b, body, table, url;
+      body = "";
       url = require("url").parse(request.url, true);
+      if (!(typeof (_a = url.query) !== "undefined" && _a !== null) || !(typeof (_b = url.query.method) !== "undefined" && _b !== null)) {
+        response.writeHead(500, {
+          "Content-Type": "text/plain"
+        });
+        response.write("Must supply method param");
+        response.close();
+        return null;
+      }
       table = url.query.table;
+      // Parse the url to see what the user wants to do
+      request.setBodyEncoding('utf8');
       request.addListener("data", function(data) {
-        return obj_json += data;
+        return body += data;
       });
-      return request.addListener("done", function() {
-        var _a, obj;
-        obj = JSON.parse(obj_json);
-        if ((_a = url.query.method) === "save") {
-          return self.save(table, obj, function(err, res) {
-            response.writeHead(200, {
-              "Content-Type": "text/plain"
-            });
-            response.write("Success");
-            return response.close();
+      return request.addListener("end", function() {
+        var _c, args, obj, predicate;
+        if ((_c = url.query.method) === "save") {
+          obj = JSON.parse(body);
+          return self.save(table, obj, function(err, result) {
+            return self.write_res(response, err, result);
+          });
+        } else if (_c === "find") {
+          predicate = JSON.parse(body);
+          return self.find(table, predicate, function(err, result) {
+            return self.write_res(response, err, result);
+          });
+        } else if (_c === "find_or_save") {
+          args = JSON.parse(body);
+          return self.find_or_save(table, args[0], args[1], function(err, result) {
+            return self.write_res(response, err, result);
           });
         } else {
-          response.writeHead(200, {
+          response.writeHead(500, {
             "Content-Type": "text/plain"
           });
-          response.write(obj_json + "\n");
+          response.write("Unrecognized method: " + (url.query.method));
           return response.close();
         }
       });
-    }).listen(port);
+    });
+    server.listen(port, host);
+    return server;
   };
   NO_SUCH_TABLE = 0;
   NO_SUCH_COLUMN = 1;
@@ -295,7 +351,7 @@
     return this.replace(/^\s*(\S*(\s+\S+)*)\s*$/, "$1");
   };
   // connect to NoSQLite this way.
-  exports.connect = function connect(db, core_data_mode) {
-    return new NoSQLite(db, core_data_mode);
+  exports.connect = function connect(db, options) {
+    return new NoSQLite(db, options);
   };
 })();

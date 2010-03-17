@@ -77,7 +77,7 @@ The above function applies the form of the predicate to each member of the array
 See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for more info as well as the [docco](http://jashkenas.github.com/docco/) styled docs in the docs directory. 
 
 Web mode
--------------------
+========================
 
 You can start nosqlite in web mode by executing
 
@@ -95,16 +95,25 @@ Here is how to use the web API.
 
 The API only reads query params and the HTTP post body so you can map it to any url you want to.
 
-Query Params
+Global Query Params
+-----------------------
 
 * __db__ (optional) - All requests by default will be executed against the db passed into NoSQLite when it is created.  If the param `db` is supplied then NoSQLite will invoke a method against the named sqlite file using the delegate to resolve the path name to the file (see delegate documentation below). 
 
 * __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
 
+* __method__ - The method on NoSQLite to call.  One of `find`, `save`, `find_or_save_all`,  `push` or `pull`. 
+
+
+Web API Methods
+-----------------------
+
+* __pull__ - `/pull?table=foo` - Pulls all the records in table foo from the remote source that are not in the local db table foo.  The records are returned as JSON in the HTTP body.
+
 
 
 Currently Requires
-----------------
+========================
 
 * [node](http://nodejs.org)
 * [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.

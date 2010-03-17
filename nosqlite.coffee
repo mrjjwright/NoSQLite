@@ -1,5 +1,6 @@
 require "underscore"
 sql: require "./sql"
+process.mixin require "./uuid"
 
 # NoSQLite - SQLite for Javascript
 # ---------------------------------
@@ -14,12 +15,17 @@ class NoSQLite
 	# params:
 	# * A HTML 5 compatible JS object.
 	# * (optional) If set to `true` will create a core data compatible schema.
-	constructor: (db, core_data_mode) ->
+	constructor: (db, options) ->
 		sys.debug("creating instance of NoSQLite")
 		
 		@db: db 
 		@table_descriptions: []
-		@core_data_mode=core_data_mode
+		@options = {
+			core_data_mode: false
+			no_guid: false
+		}
+		@options = _.extend(@options, options) if options?
+		
 		
 	# Finds an object or objects in the SQLite by running a query 
 	# derived from the supplied predicate on the supplied table.  
@@ -35,10 +41,10 @@ class NoSQLite
 		self: this
 		table: table
 		predicate: predicate
+		@hash_flag: true
 		
 		try
 			db.query(select.escaped, (select) ->
-				#sys.puts(sys.inspect(select))
 				callback(null, select)
 			)
 		catch the_err
@@ -136,9 +142,17 @@ class NoSQLite
 	# If the objects already exist in the database NoSQL will overwrite them for you with an update
 	# As always, we'll call you back when everything is ready!
 	save: (table, obj, callback) ->
+		
+		#augment object with guid unless options say not to
+		if @options_no_guid is false 
+			if not _.isArray(obj)
+				obj.guid: uuid() 
+			else for o in obj
+				o.guid: uuid()
+		
 		inserts: []
-		inserts: sql.insert(table, table_obj, @core_data_mode) for table_obj in obj if _.isArray(obj)
-		inserts.push(sql.insert(table, obj, @core_data_mode)) if not _.isArray(obj)
+		inserts: sql.insert(table, table_obj, @options.core_data_mode) for table_obj in obj if _.isArray(obj)
+		inserts.push(sql.insert(table, obj, @options.core_data_mode)) if not _.isArray(obj)
 		the_obj: if _.isArray(obj) then obj[0] else obj
 		self: this
 		db: @db
@@ -170,8 +184,8 @@ class NoSQLite
 			debug "received error: " + err
 			self.parse_error(err)
 			compensating_sql: switch self.errobj.code
-					when NO_SUCH_TABLE then sql.create_table(table, the_obj, self.core_data_mode).sql
-					when NO_SUCH_COLUMN then sql.add_column(table, self.errobj.column, null, self.core_data_mode).sql
+					when NO_SUCH_TABLE then sql.create_table(table, the_obj, self.options.core_data_mode).sql
+					when NO_SUCH_COLUMN then sql.add_column(table, self.errobj.column, null, self.options.core_data_mode).sql
 					else null
 			
 			sys.debug "compensating sql: " + compensating_sql
@@ -223,35 +237,63 @@ class NoSQLite
 
 	# Web API
 	# --------------------------------------
+	write_res: (response, err, result) ->
+		if err?
+			response.writeHead(500, {"Content-Type": "text/plain"})
+			response.write(err)
+		else
+			response.writeHead(200, {"Content-Type": "text/plain"})
+			response.write(JSON.stringify(result))											
+		response.close();
+
 	# Starts a webserver on the supplied port to serve http requests
 	# for the instance's associated database.
 	# If NoSQLite has already started a webserver on that port
 	# this method returns silently.	
-	listen: (port) ->
+	listen: (port, host) ->
+		host: "127.0.0.1" if not host?
+		port: 5000 if not port?
 		http: require "http" if not http?
-		obj_json: ""
 		self: this	
-		http.createServer( (request, response) ->
-			# Parse the url to see what the user wants to do
+		server: http.createServer( (request, response) ->
+			body: ""
 			url: require("url").parse(request.url, true)
+			if not url.query?  or not url.query.method?
+				response.writeHead(500, {"Content-Type": "text/plain"})
+				response.write("Must supply method param")
+				response.close();
+				return
 			table: url.query.table
-			request.addListener"data", (data) ->
-				obj_json += data
-			request.addListener "done", ->
-				obj: JSON.parse(obj_json)
+			# Parse the url to see what the user wants to do
+			request.setBodyEncoding('utf8');
+			request.addListener "data", (data) ->
+				body += data
+			request.addListener "end", ->
 				switch url.query.method
 					when "save" 
-						self.save(table, obj, (err, res) ->
-							response.writeHead(200, {"Content-Type": "text/plain"})
-							response.write("Success")
-							response.close();
+						obj: JSON.parse(body)
+						self.save(table, obj, (err, result) ->
+							self.write_res(response, err, result)
+						 )
+					when "find" 
+						predicate: JSON.parse(body)
+						self.find(table, predicate, (err, result) ->
+							self.write_res(response, err, result)
+						 )
+					when "find_or_save" 
+						args: JSON.parse(body)
+						self.find_or_save(table, args[0], args[1], (err, result) ->
+							self.write_res(response, err, result)
 						 )
 					else
-						response.writeHead(200, {"Content-Type": "text/plain"})
-						response.write(obj_json + "\n")
+						response.writeHead(500, {"Content-Type": "text/plain"})
+						response.write("Unrecognized method: ${url.query.method}")
 						response.close();
-		 ).listen(port)
-			
+		 )
+		server.listen(port, host)
+		return server	
+
+	
 	
 NO_SUCH_TABLE: 0
 NO_SUCH_COLUMN: 1
@@ -261,8 +303,8 @@ String.prototype.trim: ->
   return this.replace(/^\s*(\S*(\s+\S+)*)\s*$/, "$1")
 
 # connect to NoSQLite this way.
-exports.connect: (db, core_data_mode) ->
-	return new NoSQLite(db, core_data_mode)
+exports.connect: (db, options) ->
+	return new NoSQLite(db, options)
 	
 	
 	

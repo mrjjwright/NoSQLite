@@ -81,6 +81,7 @@
     for (key in _a) { if (__hasProp.call(_a, key)) {
       value = obj[key];
       type = _.isNumber(value) || _.isDate(value) ? "NUMERIC" : "TEXT";
+      key === "guid" ? (type = "VARCHAR UNIQUE NOT NULL") : null;
       this.columns.push("\"" + this.sql_name(key) + "\" " + type);
     }}
     this.sql += "(" + this.columns.join(",") + ");";
