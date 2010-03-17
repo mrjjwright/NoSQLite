@@ -75,14 +75,28 @@ The above function applies the form of the predicate to each member of the array
 	
 See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/test_nosqlite.coffee) for more info as well as the [docco](http://jashkenas.github.com/docco/) styled docs in the docs directory. 
 
+Options object
+=======================================
+
+You can pass as options object to nosqlite like son
+
+	options: {no_guid: true}
+	db: nosqlite.connect(sqlite.openDatabaseSync(db_file), options)
+
+Here are the options supported
+
+* __no_guid___ - By default NoSQLite will generate a unique UUID and add it to a column named `guid` with a unique constraint.  This is for syncing 2 SQLite databases.  If you don't want this pass false for this option.
+* __core_data_mode__ -By default this is false but if set to true, NoSQLite will generate all SQL with core data like schema compatibility.  This isn't fully tested yet but will be more as my personal project starts to work with Core Data more.  There are a few tests in `test_sql.js` that you can take a look at.
+
+
 Web mode
 ========================
 
 You can start nosqlite in web mode by executing
 
-    nosqlite.listen(5000, host)
+    db.listen(5000, host)
 
-This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and host are optional.  The port defaults to 5000 and host defaults to "127.0.0.1".  
+where db is an instance of NoSQLite obtained via the `connect` method.  This only works with NoSQLite running in node and will cause node to start a simple node based http server to service requests.   The port and host are optional.  The port defaults to 5000 and host defaults to "127.0.0.1".  
 
 Here is how to use the web API.
 
@@ -93,7 +107,7 @@ Global Query Params
 
 * __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
 
-* __method__ - The method on NoSQLite to call.  One of `find`, `save`, `find_or_save_all`,  `push` or `pull`. 
+* __method__ - The method on NoSQLite to call.  One of `find`, `save`, or `find_or_save_all``. 
 
 
 Web API Methods
