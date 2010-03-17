@@ -78,14 +78,14 @@ See the [nosqlite tests](http://github.com/mrjjwright/NoSQLite/blob/master/test/
 Options object
 =======================================
 
-You can pass as options object to nosqlite like son
+You can pass as options object to nosqlite like so:
 
 	options: {no_guid: true}
 	db: nosqlite.connect(sqlite.openDatabaseSync(db_file), options)
 
 Here are the options supported
 
-* __no_guid___ - By default NoSQLite will generate a unique UUID and add it to a column named `guid` with a unique constraint.  This is for syncing 2 SQLite databases.  If you don't want this pass false for this option.
+* __no_guid__ - By default NoSQLite will generate a unique UUID and add it to a column named `guid` with a unique constraint.  This is for syncing 2 SQLite databases.  If you don't want this pass false for this option.
 * __core_data_mode__ -By default this is false but if set to true, NoSQLite will generate all SQL with core data like schema compatibility.  This isn't fully tested yet but will be more as my personal project starts to work with Core Data more.  There are a few tests in `test_sql.js` that you can take a look at.
 
 
