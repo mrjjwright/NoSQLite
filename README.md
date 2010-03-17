@@ -98,12 +98,11 @@ You can start nosqlite in web mode by executing
 
 where db is an instance of NoSQLite obtained via the `connect` method.  This only works with NoSQLite running in node and will cause node to start a simple node based http server to service requests.   The port and host are optional.  The port defaults to 5000 and host defaults to "127.0.0.1".  
 
-Here is how to use the web API.
-
-The API only reads query params and the HTTP post body so you can map it to any url you want to.
 
 Global Query Params
 -----------------------
+
+The API only reads query params and the HTTP post body so you can map it to any url you want to.  But you should pass these URL params:
 
 * __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
 
@@ -112,6 +111,8 @@ Global Query Params
 
 Web API Methods
 -----------------------
+
+Here are the different methods supported:
 
 * __save__ - `?table=foo&method=save` - Pass the record to be saved as JSON in the body.  Returns back either a string "success" or an error message.
 * __find__ - `?table=foo&method=find` - Pass the predicate as a JSON string in the body.  Returns back either an array of found results in JSON format.
