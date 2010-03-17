@@ -21,7 +21,7 @@ Other goals
 How to use
 -------------------
 
-Put `nosqlite.js` and `sql.js` in your node.requires path. 
+Put `nosqlite.js`, `sql.js` and `uuid.js` in your node.requires path. 
 
 You will also need an HTML5 compatible sqlite driver.  [Node-sql](http://github.com/mrjjwright/node-sqlite) is what I (mrjjwright) use and is the only one tested with NoSQLite at the moment.  If you want to use it, download it, compile it for node and put it in the node.requires. path.
 
