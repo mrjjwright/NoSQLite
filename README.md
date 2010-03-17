@@ -81,15 +81,9 @@ Web mode
 
 You can start nosqlite in web mode by executing
 
-    nosqlite.listen(5000, delegate)
+    nosqlite.listen(5000, host)
 
-This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and delegate are optional.  The port defaults to 5000 and delegate will be explained below.  
-
-If you have a node based webserver (e.g. a secure server) already running servicing other requests and you simply want to service NoSQLite web requests you can pass
-
-	nosqlite.web_handler(request, response, delegate)
-	
-as a callback to your node webserver, or by invoking it directly, where `request` and `response` are node `http.ServerRequest` and `http.ServerResponse` objects respectively.
+This only works with nosqlite running in node and will cause node to start a simple node based http server to service requests.   The port and host are optional.  The port defaults to 5000 and host defaults to "127.0.0.1".  
 
 Here is how to use the web API.
 
@@ -108,8 +102,9 @@ Global Query Params
 Web API Methods
 -----------------------
 
-* __pull__ - `/pull?table=foo` - Pulls all the records in table foo from the remote source that are not in the local db table foo.  The records are returned as JSON in the HTTP body.
-
+* __save__ - `?table=foo&method=save` - Pass the record to be saved as JSON in the body.  Returns back either a string "success" or an error message.
+* __find__ - `?table=foo&method=find` - Pass the predicate as a JSON string in the body.  Returns back either an array of found results in JSON format.
+* __find_or_save__ - `?table=foo&method=find_or_save` - Pass an array with 2 elements.  The first is the predicate, and the second the obj or objects to save if not found.  Returns back either an array of found results in JSON format or the string "success".
 
 
 Currently Requires
@@ -118,3 +113,4 @@ Currently Requires
 * [node](http://nodejs.org)
 * [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
 * [node-sqlite](http://github.com/grumdrig/node-sqlite) or another HTML5 compatible database -  I am working on rewriting this to be async and be more HTML 5 compatible.  You will have to get it and compile the node bindings and put it in your node require path
+* [restler](http://github.com/danwrong/restler) - only needed to execute the tests for web API.  Not needed otherwise.
