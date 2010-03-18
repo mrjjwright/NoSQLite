@@ -1,6 +1,6 @@
 require "underscore"
 sql: require "./sql"
-process.mixin require "./uuid"
+uuid: require "./uuid"
 
 # NoSQLite - SQLite for Javascript
 # ---------------------------------
@@ -146,9 +146,9 @@ class NoSQLite
 		#augment object with guid unless options say not to
 		if @options_no_guid is false 
 			if not _.isArray(obj)
-				obj.guid: uuid() 
+				obj.guid: Math.uuidFast() 
 			else for o in obj
-				o.guid: uuid()
+				o.guid: Math.uuidFast()
 		
 		inserts: []
 		inserts: sql.insert(table, table_obj, @options.core_data_mode) for table_obj in obj if _.isArray(obj)
@@ -305,6 +305,4 @@ String.prototype.trim: ->
 # connect to NoSQLite this way.
 exports.connect: (db, options) ->
 	return new NoSQLite(db, options)
-	
-	
 	

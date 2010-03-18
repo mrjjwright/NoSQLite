@@ -1,6 +1,5 @@
 (function(){
   var nosqlite, remove_file, sqlite, test_find, test_find_or_save, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web;
-  var __hasProp = Object.prototype.hasOwnProperty;
   nosqlite = require("./nosqlite");
   sqlite = require("./sqlite");
   remove_file = function remove_file(file) {
@@ -170,7 +169,7 @@
     });
   };
   test_save_bulk = function test_save_bulk() {
-    var _a, _b, _c, _d, _e, all_keys, db, db_file, i, key, l, log, logs, options;
+    var _a, _b, _c, _d, db, db_file, i, log, logs, options;
     db_file = "./test/test_save_bulk.db";
     remove_file(db_file);
     options = {};
@@ -198,14 +197,7 @@
     logs = [];
     _c = 1; _d = 250000;
     for (_b = 0, i = _c; (_c <= _d ? i <= _d : i >= _d); (_c <= _d ? i += 1 : i -= 1), _b++) {
-      l = _.clone(log);
-      all_keys = [];
-      _e = l;
-      for (key in _e) { if (__hasProp.call(_e, key)) {
-        all_keys.push(key);
-      }}
-      l.hash = hashlib.md5(all_keys.join(","));
-      logs.push(l);
+      logs.push(_.clone(log));
     }
     return db.save("log", logs, function(err, res) {
       ok(res, "success", "should save 25,000 log messages quickly");
@@ -329,9 +321,5 @@
       });
     });
   };
-  test_save();
-  test_save_multiple();
-  test_find();
-  test_find_or_save();
-  test_save_web();
+  test_save_bulk();
 })();

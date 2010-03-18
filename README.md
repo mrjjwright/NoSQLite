@@ -105,7 +105,6 @@ Global Query Params
 The API only reads query params and the HTTP post body so you can map it to any url you want to.  But you should pass these URL params:
 
 * __table__ - The table name in SQLite.  The NoSQLite API is oriented around one table per object, so you will always be dealing with one table.
-
 * __method__ - The method on NoSQLite to call.  One of `find`, `save`, or `find_or_save_all``. 
 
 

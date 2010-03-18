@@ -181,12 +181,7 @@ test_save_bulk: ->
 	
 	logs: []
 	for i in [1..250000]
-		l: _.clone(log)
-		all_keys: [] 
-		for key of l
-			all_keys.push(key)
-		l.hash: hashlib.md5(all_keys.join(","))
-		logs.push(l)
+		logs.push(_.clone(log))
 	
 	db.save("log", logs, (err, res) ->
 		ok(res, "success", "should save 25,000 log messages quickly")
@@ -297,8 +292,4 @@ test_save_web: ->
 	)
 		
 
-test_save()
-test_save_multiple()
-test_find()
-test_find_or_save()
-test_save_web()
+test_save_bulk()

@@ -1,8 +1,8 @@
 (function(){
-  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, sql;
+  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, S4, UNRECOGNIZED_ERROR, guid, sql, uuid;
   require("underscore");
   sql = require("./sql");
-  process.mixin(require("./uuid"));
+  uuid = require("./uuid");
   // NoSQLite - SQLite for Javascript
   // ---------------------------------
   //
@@ -146,12 +146,12 @@
     //augment object with guid unless options say not to
     if (this.options_no_guid === false) {
       if (!_.isArray(obj)) {
-        obj.guid = uuid();
+        obj.guid = guid();
       } else {
         _a = obj;
         for (_b = 0, _c = _a.length; _b < _c; _b++) {
           o = _a[_b];
-          o.guid = uuid();
+          o.guid = guid();
         }
       }
     }
@@ -353,5 +353,11 @@
   // connect to NoSQLite this way.
   exports.connect = function connect(db, options) {
     return new NoSQLite(db, options);
+  };
+  S4 = function S4() {
+    return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+  };
+  guid = function guid() {
+    return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
   };
 })();
