@@ -23,7 +23,7 @@ How to use
 
 Put all the NoSQLite files together in one directory in your node.requires.path.
 
-NoSQLite uses my fork (temporarily) of the new async [node-sqlite](http://github.com/mrjjwright/node-sqlite) and it is the only sqlite driver. tested with NoSQLite at the moment.  You will need to download it, run `node-waf configure` and `node-waf build` and copy the `sqlite.js` and  `build/default/sqlite3_bindings.node` into the NoSQLite directory.
+NoSQLite uses my fork (temporarily) of the new async [node-sqlite](http://github.com/mrjjwright/node-sqlite) and it is the only sqlite driver tested with NoSQLite at the moment.  You will need to download it, run `node-waf configure` and `node-waf build` and copy the `sqlite.js` and  `build/default/sqlite3_bindings.node` into the NoSQLite directory.
 
 Add necessary requires to the top of your JS (examples are shown in CoffeeScript):
 	
