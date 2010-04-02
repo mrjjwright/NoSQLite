@@ -21,18 +21,20 @@ Other goals
 How to use
 -------------------
 
-Put `nosqlite.js`, `sql.js` and `uuid.js` in your node.requires path. 
+# Put all the NoSQLite files together in one directory in your node.requires.path.
 
-You will also need an HTML5 compatible sqlite driver.  [Node-sql](http://github.com/mrjjwright/node-sqlite) is what I (mrjjwright) use and is the only one tested with NoSQLite at the moment.  If you want to use it, download it, compile it for node and put it in the node.requires. path.
+# NoSQLite uses my fork (temporarily) of the new async [node-sqlite](http://github.com/mrjjwright/node-sqlite) and it is the only sqlite driver. tested with NoSQLite at the moment.  You will need to download it, run `node-waf configure` and `node-waf build` and copy the `sqlite.js` and  `build/default/sqlite3_bindings.node` into the NoSQLite directory.
 
 Add necessary requires to the top of your JS (examples are shown in CoffeeScript):
 	
-	sqlite: require("node-sqlite")
-	nosql: require("nosqlite")
+	nosqlite: require("nosqlite")
 
 Open up a reference to your database and pass it to NoSQLite
 	
-	db: nosqlite.connect(sqlite.openDatabaseSync("my_db.sqlite3"))
+	db: nosqlite.connect("/mypath/my_db.sqlite3",  ->
+		#start your work in a callback
+	)
+
 
 Now you are ready to start working with NoSQLite.  NoSQLite is motivated by the idea that if we work simply with a one-to-one mapping between a JS object and a SQLite table (no joins), we can get an awful lot for free, and better querying capabilities than other NoSQL stores out there.
 
@@ -124,5 +126,5 @@ Currently Requires
 
 * [node](http://nodejs.org)
 * [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
-* [node-sqlite](http://github.com/grumdrig/node-sqlite) or another HTML5 compatible database -  I am working on rewriting this to be async and be more HTML 5 compatible.  You will have to get it and compile the node bindings and put it in your node require path
+* [node-sqlite](http://github.com/orlandov/node-sqlite)  You will have to get it and compile the node bindings and put it in your node requires path.
 * [restler](http://github.com/danwrong/restler) - only needed to execute the tests for web API.  Not needed otherwise.
