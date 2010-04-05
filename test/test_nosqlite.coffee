@@ -251,6 +251,7 @@ test_find_or_save: ->
 		]
 
 		db.find_or_save("log", {text: "hello"}, logs, (err, res) ->
+			sys.puts "hi " + res
 			assert.ok(res, 2, "should save not find these obj")
 			db.close()
 		)
@@ -294,10 +295,45 @@ test_save_web: ->
 				server.close()
 			)
 		)
-		
 
-test_find()
-test_find_or_save()
-test_save()
-test_save_multiple()
+
+test_migration: ->
+	
+	db_file: "./test/test_migration.db"
+	remove_file(db_file)
+	
+	#create schema 1
+	db: nosqlite.connect db_file, ->
+		log: {
+			text: "hello",
+			occurred_at: new Date(),
+			created_at: new Date(),
+			updated_at: new Date(),
+			source: "string1",
+			log_type: "string1",
+			geo_lat: "string1",
+			geo_long: "string1",
+			metric:  5,
+			external_id: 10,
+			level: 5,
+			readable_metric: "5 miles",
+			facts: ["hello", "hello", "hello1"],
+			original: {id: 1, text: "some crazy object"} 
+		}
+	
+		convert_callback: (old_obj) ->
+			old_obj.occurred_at: "Date.parse(old_obj.ocurred_at).getTime()"
+			return old_obj
+		
+		db.save "log", log, false, (err, res) ->
+			db.migrate_table "log", convert_callback, (err, res)->
+				assert.ok(res, "success", "should migrate table from one schema to another")
+
+
+
+#test_find()
+#test_find_or_save()
+#test_save()
+#test_save_multiple()
+test_migration()
 #test_save_web()

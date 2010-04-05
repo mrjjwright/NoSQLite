@@ -1,7 +1,6 @@
 sys: require 'sys'
-fs: require "fs"
-require "underscore"
-
+require "./underscore"
+	
 # A simple DSL for creating SQL statements frorm and for JS to SQLLite
 class SQL
 	constructor: (core_data_mode)->
@@ -69,6 +68,7 @@ class SQL
 			@columns.push("\"Z_OPT\" INTEGER")
 			
 		for key of obj
+			if key is "rowid" then continue
 			value: obj[key]
 			type: if _.isNumber(value) or _.isDate(value) then "NUMERIC" else "TEXT"
 			if key is "guid"
@@ -77,6 +77,16 @@ class SQL
 		@sql += "(" + @columns.join(",") + ");"
 		return this
 
+	# create temp table sql.
+	# We create it with the same number of cols as the old table
+	# We don't care about the types
+	create_temp_table: (table, obj)->
+		# execute a pragma to get the number of cols in the old table
+		keys: key for key of obj
+		#keys: _.reject keys, (key) -> key is "rowid"
+		temp_cols: keys.join(",")
+		return "create temporary table ${table}_backup(${temp_cols});"
+	
 	# returns add_column sql for SQLite
 	# see http://www.sqlite.org/lang_altertable.html
 	add_column: (table, column, type) ->
@@ -149,13 +159,13 @@ class SQL
 			return JSON.parse(value)
 		catch error
 			return value
-	
-process.mixin(exports, {
-  select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
-  insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
-  create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
-  add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
-  convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
-  convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
-  populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
-})
+			
+exports.SQL: SQL
+exports.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
+exports.insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
+exports.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
+exports.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
+exports.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
+exports.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
+exports.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
+

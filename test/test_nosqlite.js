@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web;
+  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -16,7 +16,7 @@
     var db, db_file;
     db_file = "./test/test_find.db";
     remove_file(db_file);
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -47,6 +47,7 @@
         });
       });
     });
+    return db;
   };
   test_save_cd = function test_save_cd() {
     var db, db_file, options;
@@ -54,7 +55,7 @@
     remove_file(db_file);
     options = {};
     options.core_data_mode = true;
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -79,12 +80,13 @@
         return assert.ok(res, "success", "should save single obj");
       });
     });
+    return db;
   };
   test_save = function test_save() {
     var db, db_file;
     db_file = "./test/test_save.db";
     remove_file(db_file);
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -110,12 +112,13 @@
         return db.close();
       });
     });
+    return db;
   };
   test_save_multiple = function test_save_multiple() {
     var db, db_file;
     db_file = "./test/test_save_multiple.db";
     remove_file(db_file);
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log, logs;
       logs = [(log = {
           text: "hello",
@@ -178,6 +181,7 @@
         return db.close();
       });
     });
+    return db;
   };
   test_save_bulk = function test_save_bulk() {
     var db, db_file, options;
@@ -185,8 +189,8 @@
     remove_file(db_file);
     options = {};
     options.no_guid = true;
-    return db = nosqlite.connect(db_file, function() {
-      var _a, _b, _c, _d, i, log, logs, nosqlite_db;
+    db = nosqlite.connect(db_file, function() {
+      var _a, _b, _c, i, log, logs, nosqlite_db;
       nosqlite_db = nosqlite.connect(db, options);
       log = {
         text: "hello",
@@ -208,8 +212,8 @@
         }
       };
       logs = [];
-      _c = 1; _d = 250000;
-      for (_b = 0, i = _c; (_c <= _d ? i <= _d : i >= _d); (_c <= _d ? i += 1 : i -= 1), _b++) {
+      _b = 1; _c = 250000;
+      for (_a = 0, i = _b; (_b <= _c ? i <= _c : i >= _c); (_b <= _c ? i += 1 : i -= 1), _a++) {
         logs.push(_.clone(log));
       }
       return db.save("log", logs, false, function(err, res) {
@@ -217,12 +221,13 @@
         return db.close();
       });
     });
+    return db;
   };
   test_find_or_save = function test_find_or_save() {
     var db, db_file;
     db_file = "./test/test_find_or_save.db";
     remove_file(db_file);
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log, logs;
       logs = [(log = {
           text: "hello",
@@ -283,10 +288,12 @@
       return db.find_or_save("log", {
         text: "hello"
       }, logs, function(err, res) {
+        sys.puts("hi " + res);
         assert.ok(res, 2, "should save not find these obj");
         return db.close();
       });
     });
+    return db;
   };
   test_save_web = function test_save_web() {
     var db, db_file, rest;
@@ -296,7 +303,7 @@
       rest = require("restler");
     }
     //start the listener
-    return db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, function() {
       var log, server, url;
       server = db.listen(5000);
       log = {
@@ -337,10 +344,50 @@
         });
       });
     });
+    return db;
   };
-  test_find();
-  test_find_or_save();
-  test_save();
-  test_save_multiple();
+  test_migration = function test_migration() {
+    var db, db_file;
+    db_file = "./test/test_migration.db";
+    remove_file(db_file);
+    //create schema 1
+    db = nosqlite.connect(db_file, function() {
+      var convert_callback, log;
+      log = {
+        text: "hello",
+        occurred_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
+        source: "string1",
+        log_type: "string1",
+        geo_lat: "string1",
+        geo_long: "string1",
+        metric: 5,
+        external_id: 10,
+        level: 5,
+        readable_metric: "5 miles",
+        facts: ["hello", "hello", "hello1"],
+        original: {
+          id: 1,
+          text: "some crazy object"
+        }
+      };
+      convert_callback = function convert_callback(old_obj) {
+        old_obj.occurred_at = "Date.parse(old_obj.ocurred_at).getTime()";
+        return old_obj;
+      };
+      return db.save("log", log, false, function(err, res) {
+        return db.migrate_table("log", convert_callback, function(err, res) {
+          return assert.ok(res, "success", "should migrate table from one schema to another");
+        });
+      });
+    });
+    return db;
+  };
+  //test_find()
+  //test_find_or_save()
+  //test_save()
+  //test_save_multiple()
+  test_migration();
   //test_save_web()
 })();

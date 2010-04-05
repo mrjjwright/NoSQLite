@@ -9,7 +9,7 @@ sqlite: require "./sqlite"
 # ---------------------------------
 # 
 # A library to make it as easy as possible to store and retrieve JS objects
-# from SQLite. Zero-configuration!  
+# from SQLite. Zero-configuration!	
 # Attempts to store JS objects as intelligently as possible in SQLite.
 class NoSQLite
 
@@ -28,7 +28,7 @@ class NoSQLite
 			no_guid: false
 		}
 
-		if  _.isFunction(options)
+		if	_.isFunction(options)
 			the_callback: options
 		else 
 			@options: _.extend(@options, options) if options?
@@ -46,29 +46,20 @@ class NoSQLite
 	# The following is the supported predicate syntax:
 	# 
 	# As always, we will call you back when everything is ready!
-	find: (table, predicate, callback) ->
+	find: (table, predicate, the_callback) ->
 		select: sql.select(table, predicate)
 		db: @db
 		self: this
-		table: table
-		predicate: predicate
-		@hash_flag: true
+		callback: the_callback
+		callback: predicate if _.isFunction(predicate)
+		sys.p select.escaped
+		db.query select.escaped, (error, results) ->
+			if error? then return callback(error)
+			callback(null, results)
 		
-		try
-			db.query(select.escaped, (res) ->
-				callback(null, res)
-			)
-		catch the_err
-			debug "error on find: " + the_err
-			err: if the_err.message? then the_err.message else the_err
-			self.parse_error(err)
-			switch self.errobj.code
-				when self.NO_SUCH_TABLE then callback("NoSQLite doesn't know about this table yet.  Either call save or create_table.")
-				when self.NO_SUCH_COLUMN then callback("NoSQLite can create this column for you if you call create_table with an object with that property")
-				else callback(err)
 			
 	# Find the object in the database identified by the predicate
-	# if it exists.  Otherwise, saves it.
+	# if it exists.	 Otherwise, saves it.
 	# Use this method if you need to save stuff in SQLite if it's not already there.
 	# This is useful for times you aren't sure if the object is already in the db.
 	# and you don't have the rowid on the obj (othewise you could just do a save, which
@@ -150,7 +141,7 @@ class NoSQLite
 	# * Dates are stored as numbers, Unix epochs since 1970
 	# * Booleans are stored as numbers, 1 for true or 0 for false
 	# * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
-	# You can pass in an array of objects as well.  Each row will be inserted
+	# You can pass in an array of objects as well.	Each row will be inserted
 	#
 	# As always, we'll call you back when everything is ready!
 	save: (table, obj, in_transaction, the_callback) ->
@@ -167,8 +158,7 @@ class NoSQLite
 		if _.isBoolean(in_transaction)
 			tx_flag: in_transaction
 			callback: the_callback
-			
-		
+						
 		inserts: []
 		inserts: sql.insert(table, table_obj, @options.core_data_mode) for table_obj in obj if _.isArray(obj)
 		inserts.push(sql.insert(table, obj, @options.core_data_mode)) if not _.isArray(obj)
@@ -187,7 +177,7 @@ class NoSQLite
 				# save the first one
 				self_this: this
 				try_first_one: ->
-					db.query inserts[0].escaped, null, (err) ->
+					db.query inserts[0].escaped, null, (err, result) ->
 						if err?
 							# This is NoSQLite, let's see if we can fix this!
 							compensating_sql: self.compensating_sql(table, the_obj, err) 
@@ -204,10 +194,8 @@ class NoSQLite
 				# save the rest
 				self_this: this
 				do_insert: (i) ->
-					db.query inserts[i].escaped, (err) ->
-						if err?
-							callback(err)
-							return
+					db.query inserts[i].escaped, (err, result) ->
+						if err? then return callback(err)
 						if i-- then do_insert(i)
 						else self_this()
 				if inserts.length > 1 then do_insert(inserts.length-1)
@@ -233,8 +221,7 @@ class NoSQLite
 				else null
 			
 					
-	# closes any underlying SQLite connection
-	# currently, this means closes the underlying SQLite db process
+	# closes the underlying SQLite connection
 	close: ->
 		@db.close(->
 		)
@@ -260,7 +247,7 @@ class NoSQLite
 
 	# Migrations
 	# -------------------------------------
-	# A handy utility for doing a SQLite table schema migration.
+	# A handy utility for doing a SQLite table data or schema migration.
 	# 
 	# If something goes wrong here at the wrong time, 
 	# not that it will, I know you have a backup. :)
@@ -273,7 +260,7 @@ class NoSQLite
 	# should implicitly describe (using nosqlite conventions, detailed in docs for save) 
 	# the new schema that will be used to create the new table.
 	# The first row will be inserted and convert_callback will be called for 
-	# for every other row in the temp table.
+	# for every other row in the temp table.  You can do data conversions in this callback
 	# 
 	# Finally, the temp table is deleted and the callback(err, res) function is called.
 	# If any errors occur, callback(err) will be called.
@@ -282,42 +269,63 @@ class NoSQLite
 	migrate_table: (table, convert_callback, callback) ->
 		self: this
 		row1: {}
+		temp_table_name: "${table}_backup"
+		sys.debug "Migrating table: ${table}"
 		flow.exec(
-			->		
-				#create the temp table
+			->
+				self.db.query "begin transaction", this
+			->
+				# create the temp table
+				this_flow: this
 				self.find table, {rowid: 1}, (err, res) ->
 					row1: res[0]
-					create_temp_table(row1, this)
+					create_temp_table_sql: sql.create_temp_table(table, row1)
+					self.db.query create_temp_table_sql, this_flow
+			->
+				# dump all rows to the temp table 
+				this_flow: this
+				select_sql: sql.select(table).escaped
+				dump_sql: "insert into ${temp_table_name} ${select_sql};"
+				self.db.query dump_sql, (err, res) ->
+					if err? then return callback(err)
+					this_flow()
+			->
+				#drop and recreate the table
+				this_flow: this
+				create_table_sql: sql.create_table(table, row1).sql
+				drop_table_sql: "drop table ${table}"
+				self.db.query drop_table_sql, (err, res) ->
+					if err? then return callback(err)
+					self.db.query create_table_sql, (err, res) ->
+						if err? then return callback(err)
+						this_flow()
 			->
 				this_flow: this
-				#convert and save the first row
+				# convert and save the first row to new table
 				new_obj: convert_callback(row1)
-				self.save table, new_obj, (err, res) ->
+				in_transaction: true
+				this_flow()
+				self.save table, new_obj, in_transaction, (err, res) ->
 					if err? then callback(err)
 					this_flow()
 			->
-				this_flow()
-				#convert the rest of the rows
-				self.find table, {'rowid >': 1}, (err, res) ->
+				this_flow: this
+				# convert the rest of the rows and save to new table
+				self.find temp_table_name,  {"rowid >": 0}, (err, res) ->
+					if err? then return callback(err)
+					if res.length <= 1 then this_flow()
 					for row in res
 						converted_obj: convert_callback(row)
-						self.save table, converted_obj,  (err, res) ->
+						self.save table, converted_obj,	 (err, res) ->
 							if err? then callback(err)
 							this_flow()
 			->
-				callback(null, "success") if callback?
+				self.db.query "commit", (err, res) ->
+					if err? then return callback(err)
+					callback(null, "success") if callback?
 		)
-		# create the temp table.
-		# We create it with the same number of cols as the old table
-		# We don't care about the types
-		create_temp_table: (obj, callback)->
-			# execute a pragma to get the number of cols in the old table
-			temp_cols: obj.keys.join(",")
-			temp_table_sql: "create temporary table ${table}_backup(${temp_cols});"
-			# this doesn't execute async (yet)
-			db.query(temp_table_sql)
-			callback()
-			
+		
+					
 
 	# Web API
 	# --------------------------------------
@@ -333,7 +341,7 @@ class NoSQLite
 	# Starts a webserver on the supplied port to serve http requests
 	# for the instance's associated database.
 	# If NoSQLite has already started a webserver on that port
-	# this method returns silently.	
+	# this method returns silently. 
 	listen: (port, host) ->
 		host: "127.0.0.1" if not host?
 		port: 5000 if not port?

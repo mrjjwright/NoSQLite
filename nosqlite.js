@@ -48,33 +48,25 @@
   // The following is the supported predicate syntax:
   //
   // As always, we will call you back when everything is ready!
-  NoSQLite.prototype.find = function find(table, predicate, callback) {
-    var _a, _b, db, err, select, self;
+  NoSQLite.prototype.find = function find(table, predicate, the_callback) {
+    var callback, db, select, self;
     select = sql.select(table, predicate);
     db = this.db;
     self = this;
-    table = table;
-    predicate = predicate;
-    this.hash_flag = true;
-    try {
-      return db.query(select.escaped, function(res) {
-        return callback(null, res);
-      });
-    } catch (the_err) {
-      debug("error on find: " + the_err);
-      err = (typeof (_a = the_err.message) !== "undefined" && _a !== null) ? the_err.message : the_err;
-      self.parse_error(err);
-      if ((_b = self.errobj.code) === self.NO_SUCH_TABLE) {
-        return callback("NoSQLite doesn't know about this table yet.  Either call save or create_table.");
-      } else if (_b === self.NO_SUCH_COLUMN) {
-        return callback("NoSQLite can create this column for you if you call create_table with an object with that property");
-      } else {
-        return callback(err);
-      }
+    callback = the_callback;
+    if (_.isFunction(predicate)) {
+      callback = predicate;
     }
+    sys.p(select.escaped);
+    return db.query(select.escaped, function(error, results) {
+      if ((typeof error !== "undefined" && error !== null)) {
+        return callback(error);
+      }
+      return callback(null, results);
+    });
   };
   // Find the object in the database identified by the predicate
-  // if it exists.  Otherwise, saves it.
+  // if it exists.	 Otherwise, saves it.
   // Use this method if you need to save stuff in SQLite if it's not already there.
   // This is useful for times you aren't sure if the object is already in the db.
   // and you don't have the rowid on the obj (othewise you could just do a save, which
@@ -129,13 +121,19 @@
       if ((typeof err !== "undefined" && err !== null)) {
         callback(err);
       }
-      return (typeof the_rest !== "undefined" && the_rest !== null) ? _.each(the_rest, function(the_obj) {
-        the_predicate = sql.populate_predicate(predicate, the_obj);
-        return find_or_save_one(table, the_predicate, the_obj, function(err, result) {
-          (typeof err !== "undefined" && err !== null) ? callback(err) : null;
-          return the_obj === _.last(the_rest) ? callback(err, num_saved) : null;
+      if ((typeof the_rest !== "undefined" && the_rest !== null)) {
+        return _.each(the_rest, function(the_obj) {
+          the_predicate = sql.populate_predicate(predicate, the_obj);
+          return find_or_save_one(table, the_predicate, the_obj, function(err, result) {
+            (typeof err !== "undefined" && err !== null) ? callback(err) : null;
+            if (the_obj === _.last(the_rest)) {
+              return callback(err, num_saved);
+            }
+          });
         });
-      }) : callback(null, result);
+      } else {
+        return callback(null, result);
+      }
     });
   };
   // Stores an object or objects in SQLite.
@@ -151,7 +149,7 @@
   // * Dates are stored as numbers, Unix epochs since 1970
   // * Booleans are stored as numbers, 1 for true or 0 for false
   // * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
-  // You can pass in an array of objects as well.  Each row will be inserted
+  // You can pass in an array of objects as well.	Each row will be inserted
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, in_transaction, the_callback) {
     var _a, _b, _c, _d, _e, _f, _g, callback, db, inserts, o, self, table_obj, the_obj, tx_flag;
@@ -160,9 +158,9 @@
       if (!_.isArray(obj)) {
         obj.guid = Math.uuidFast();
       } else {
-        _a = obj;
-        for (_b = 0, _c = _a.length; _b < _c; _b++) {
-          o = _a[_b];
+        _b = obj;
+        for (_a = 0, _c = _b.length; _a < _c; _a++) {
+          o = _b[_a];
           o.guid = Math.uuidFast();
         }
       }
@@ -176,9 +174,9 @@
     inserts = [];
     if (_.isArray(obj)) {
       inserts = (function() {
-        _d = []; _e = obj;
-        for (_f = 0, _g = _e.length; _f < _g; _f++) {
-          table_obj = _e[_f];
+        _d = []; _f = obj;
+        for (_e = 0, _g = _f.length; _e < _g; _e++) {
+          table_obj = _f[_e];
           _d.push(sql.insert(table, table_obj, this.options.core_data_mode));
         }
         return _d;
@@ -192,13 +190,17 @@
     db = this.db;
     return flow.exec(function() {
       // start a transaction if we aren't in one
-      return !tx_flag ? db.query("begin transaction", this) : this();
+      if (!tx_flag) {
+        return db.query("begin transaction", this);
+      } else {
+        return this();
+      }
     }, function() {
       var self_this, try_first_one;
       // save the first one
       self_this = this;
       try_first_one = function try_first_one() {
-        return db.query(inserts[0].escaped, null, function(err) {
+        return db.query(inserts[0].escaped, null, function(err, result) {
           var compensating_sql;
           if ((typeof err !== "undefined" && err !== null)) {
             // This is NoSQLite, let's see if we can fix this!
@@ -227,18 +229,29 @@
       // save the rest
       self_this = this;
       do_insert = function do_insert(i) {
-        return db.query(inserts[i].escaped, function(err) {
+        return db.query(inserts[i].escaped, function(err, result) {
           if ((typeof err !== "undefined" && err !== null)) {
-            callback(err);
-            return null;
+            return callback(err);
           }
-          return i-- ? do_insert(i) : self_this();
+          if (i--) {
+            return do_insert(i);
+          } else {
+            return self_this();
+          }
         });
       };
-      return inserts.length > 1 ? do_insert(inserts.length - 1) : this();
+      if (inserts.length > 1) {
+        return do_insert(inserts.length - 1);
+      } else {
+        return this();
+      }
     }, function() {
       // commit the transaction
-      return !tx_flag ? db.query("commit", this) : this();
+      if (!tx_flag) {
+        return db.query("commit", this);
+      } else {
+        return this();
+      }
     }, function() {
       // callback to the user
       if ((typeof callback !== "undefined" && callback !== null)) {
@@ -250,7 +263,7 @@
     var _a, _b, compensating_sql, err;
     err = (typeof the_err !== "undefined" && the_err !== null) && (typeof (_a = the_err.message) !== "undefined" && _a !== null) ? the_err.message : the_err;
     this.parse_error(err);
-    return (compensating_sql = (function() {
+    compensating_sql = (function() {
       if ((_b = this.errobj.code) === NO_SUCH_TABLE) {
         return sql.create_table(table, the_obj, this.options.core_data_mode).sql;
       } else if (_b === NO_SUCH_COLUMN) {
@@ -258,10 +271,10 @@
       } else {
         return null;
       }
-    }).call(this));
+    }).call(this);
+    return compensating_sql;
   };
-  // closes any underlying SQLite connection
-  // currently, this means closes the underlying SQLite db process
+  // closes the underlying SQLite connection
   NoSQLite.prototype.close = function close() {
     return this.db.close(function() {    });
   };
@@ -278,17 +291,20 @@
     this.errobj = {};
     if (err.indexOf("no such table") !== -1) {
       this.errobj.code = NO_SUCH_TABLE;
-      return (this.errobj.table = err.split("table: ")[1]);
+      this.errobj.table = err.split("table: ")[1];
+      return this.errobj.table;
     } else if (err.indexOf("no column named ") !== -1) {
       this.errobj.code = NO_SUCH_COLUMN;
-      return (this.errobj.column = err.split("no column named ")[1].trim());
+      this.errobj.column = err.split("no column named ")[1].trim();
+      return this.errobj.column;
     } else {
-      return (this.errobj.code = UNRECOGNIZED_ERROR);
+      this.errobj.code = UNRECOGNIZED_ERROR;
+      return this.errobj.code;
     }
   };
   // Migrations
   // -------------------------------------
-  // A handy utility for doing a SQLite table schema migration.
+  // A handy utility for doing a SQLite table data or schema migration.
   //
   // If something goes wrong here at the wrong time,
   // not that it will, I know you have a backup. :)
@@ -301,42 +317,86 @@
   // should implicitly describe (using nosqlite conventions, detailed in docs for save)
   // the new schema that will be used to create the new table.
   // The first row will be inserted and convert_callback will be called for
-  // for every other row in the temp table.
+  // for every other row in the temp table.  You can do data conversions in this callback
   //
   // Finally, the temp table is deleted and the callback(err, res) function is called.
   // If any errors occur, callback(err) will be called.
   // (Based roughly on the approach detailed in http://www.sqlite.org/faq.html, question 11)
   NoSQLite.prototype.migrate_table = function migrate_table(table, convert_callback, callback) {
-    var create_temp_table, row1, self;
+    var row1, self, temp_table_name;
     self = this;
     row1 = {};
-    flow.exec(function() {
-      //create the temp table
+    temp_table_name = "" + (table) + "_backup";
+    sys.debug("Migrating table: " + (table));
+    return flow.exec(function() {
+      return self.db.query("begin transaction", this);
+    }, function() {
+      var this_flow;
+      // create the temp table
+      this_flow = this;
       return self.find(table, {
         rowid: 1
       }, function(err, res) {
+        var create_temp_table_sql;
         row1 = res[0];
-        return create_temp_table(row1, this);
+        create_temp_table_sql = sql.create_temp_table(table, row1);
+        return self.db.query(create_temp_table_sql, this_flow);
       });
     }, function() {
-      var new_obj, this_flow;
+      var dump_sql, select_sql, this_flow;
+      // dump all rows to the temp table
       this_flow = this;
-      //convert and save the first row
+      select_sql = sql.select(table).escaped;
+      dump_sql = "insert into " + (temp_table_name) + " " + (select_sql) + ";";
+      return self.db.query(dump_sql, function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          return callback(err);
+        }
+        return this_flow();
+      });
+    }, function() {
+      var create_table_sql, drop_table_sql, this_flow;
+      //drop and recreate the table
+      this_flow = this;
+      create_table_sql = sql.create_table(table, row1).sql;
+      drop_table_sql = "drop table " + (table);
+      return self.db.query(drop_table_sql, function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          return callback(err);
+        }
+        return self.db.query(create_table_sql, function(err, res) {
+          if ((typeof err !== "undefined" && err !== null)) {
+            return callback(err);
+          }
+          return this_flow();
+        });
+      });
+    }, function() {
+      var in_transaction, new_obj, this_flow;
+      this_flow = this;
+      // convert and save the first row to new table
       new_obj = convert_callback(row1);
-      return self.save(table, new_obj, function(err, res) {
+      in_transaction = true;
+      this_flow();
+      return self.save(table, new_obj, in_transaction, function(err, res) {
         (typeof err !== "undefined" && err !== null) ? callback(err) : null;
         return this_flow();
       });
     }, function() {
-      this_flow();
-      //convert the rest of the rows
-      return self.find(table, {
-        'rowid >': 1
+      var this_flow;
+      this_flow = this;
+      // convert the rest of the rows and save to new table
+      return self.find(temp_table_name, {
+        "rowid >": 0
       }, function(err, res) {
         var _a, _b, _c, _d, converted_obj, row;
-        _a = []; _b = res;
-        for (_c = 0, _d = _b.length; _c < _d; _c++) {
-          row = _b[_c];
+        if ((typeof err !== "undefined" && err !== null)) {
+          return callback(err);
+        }
+        res.length <= 1 ? this_flow() : null;
+        _a = []; _c = res;
+        for (_b = 0, _d = _c.length; _b < _d; _b++) {
+          row = _c[_b];
           _a.push((function() {
             converted_obj = convert_callback(row);
             return self.save(table, converted_obj, function(err, res) {
@@ -348,22 +408,15 @@
         return _a;
       });
     }, function() {
-      if ((typeof callback !== "undefined" && callback !== null)) {
-        return callback(null, "success");
-      }
+      return self.db.query("commit", function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          return callback(err);
+        }
+        if ((typeof callback !== "undefined" && callback !== null)) {
+          return callback(null, "success");
+        }
+      });
     });
-    // create the temp table.
-    // We create it with the same number of cols as the old table
-    // We don't care about the types
-    return create_temp_table = function create_temp_table(obj, callback) {
-      var temp_cols, temp_table_sql;
-      // execute a pragma to get the number of cols in the old table
-      temp_cols = obj.keys.join(",");
-      temp_table_sql = "create temporary table " + (table) + "_backup(" + (temp_cols) + ");";
-      // this doesn't execute async (yet)
-      db.query(temp_table_sql);
-      return callback();
-    };
   };
   // Web API
   // --------------------------------------
@@ -425,7 +478,9 @@
         } else if (_c === "find") {
           predicate = JSON.parse(body);
           return self.find(table, predicate, function(err, result) {
-            return (typeof result !== "undefined" && result !== null) ? self.write_res(response, err, result) : null;
+            if ((typeof result !== "undefined" && result !== null)) {
+              return self.write_res(response, err, result);
+            }
           });
         } else if (_c === "find_or_save") {
           args = JSON.parse(body);

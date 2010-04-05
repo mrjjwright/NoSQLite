@@ -83,7 +83,7 @@ Options object
 You can pass as options object to nosqlite like so:
 
 	options: {no_guid: true}
-	db: nosqlite.connect(sqlite.openDatabaseSync(db_file), options)
+	db: nosqlite.connect(db_file, options, callback)
 
 Here are the options supported
 
@@ -126,5 +126,6 @@ Currently Requires
 
 * [node](http://nodejs.org)
 * [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
-* [node-sqlite](http://github.com/orlandov/node-sqlite)  You will have to get it and compile the node bindings and put it in your node requires path.
+* [node-sqlite](http://github.com/mrjjwright/nosqlite)  My fork of it. You will have to get it and compile the node bindings and put it in your node requires path.
 * [restler](http://github.com/danwrong/restler) - only needed to execute the tests for web API.  Not needed otherwise.
+* (NoSQLite ships with these libraries but you don't need to install everything: [flow.js](http://github.com/willconant/flow-js), [underscore.js](http://documentcloud.github.com/underscore/), [Math.uuid.js](http://www.broofa.com/2008/09/javascript-uuid-function/)

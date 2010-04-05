@@ -1,9 +1,8 @@
 (function(){
-  var SQL, fs, sys;
+  var SQL, sys;
   var __hasProp = Object.prototype.hasOwnProperty;
   sys = require('sys');
-  fs = require("fs");
-  require("underscore");
+  require("./underscore");
   // A simple DSL for creating SQL statements frorm and for JS to SQLLite
   SQL = function SQL(core_data_mode) {
     this.values = [];
@@ -27,9 +26,9 @@
     // generate the where clauses from what is passed in
     ands_escaped = [];
     ands_placeholder = [];
-    _a = predicates;
-    for (_b = 0, _c = _a.length; _b < _c; _b++) {
-      predicate = _a[_b];
+    _b = predicates;
+    for (_a = 0, _c = _b.length; _a < _c; _a++) {
+      predicate = _b[_a];
       _d = predicate;
       for (key in _d) { if (__hasProp.call(_d, key)) {
         key_sql = this.key_to_sql(key);
@@ -79,6 +78,9 @@
     }
     _a = obj;
     for (key in _a) { if (__hasProp.call(_a, key)) {
+      if (key === "rowid") {
+        continue;
+      }
       value = obj[key];
       type = _.isNumber(value) || _.isDate(value) ? "NUMERIC" : "TEXT";
       key === "guid" ? (type = "VARCHAR UNIQUE NOT NULL") : null;
@@ -86,6 +88,23 @@
     }}
     this.sql += "(" + this.columns.join(",") + ");";
     return this;
+  };
+  // create temp table sql.
+  // We create it with the same number of cols as the old table
+  // We don't care about the types
+  SQL.prototype.create_temp_table = function create_temp_table(table, obj) {
+    var _a, _b, key, keys, temp_cols;
+    // execute a pragma to get the number of cols in the old table
+    keys = (function() {
+      _a = []; _b = obj;
+      for (key in _b) { if (__hasProp.call(_b, key)) {
+        _a.push(key);
+      }}
+      return _a;
+    }).call(this);
+    //keys: _.reject keys, (key) -> key is "rowid"
+    temp_cols = keys.join(",");
+    return "create temporary table " + (table) + "_backup(" + (temp_cols) + ");";
   };
   // returns add_column sql for SQLite
   // see http://www.sqlite.org/lang_altertable.html
@@ -120,9 +139,9 @@
     populated_predicates = [];
     //allow the user to pass in a single predicates or multiple predicates
     !_.isArray(predicate) ? predicates.push(predicate) : (predicates = predicate);
-    _a = predicates;
-    for (_b = 0, _c = _a.length; _b < _c; _b++) {
-      predicate = _a[_b];
+    _b = predicates;
+    for (_a = 0, _c = _b.length; _a < _c; _a++) {
+      predicate = _b[_a];
       cloned_predicate = _.clone(predicate);
       _d = predicate;
       for (key in _d) { if (__hasProp.call(_d, key)) {
@@ -178,27 +197,26 @@
       return value;
     }
   };
-  process.mixin(exports, {
-    select: function select(table, predicate, core_data_mode) {
-      return new SQL(core_data_mode).select(table, predicate);
-    },
-    insert: function insert(table, obj, core_data_mode) {
-      return new SQL(core_data_mode).insert(table, obj);
-    },
-    create_table: function create_table(table, obj, core_data_mode) {
-      return new SQL(core_data_mode).create_table(table, obj);
-    },
-    add_column: function add_column(table, column, type, core_data_mode) {
-      return new SQL(core_data_mode).add_column(table, column, type);
-    },
-    convert_to_sqlite: function convert_to_sqlite(value, core_data_mode) {
-      return new SQL(core_data_mode).convert_to_sqlite(value);
-    },
-    convert_from_sqlite: function convert_from_sqlite(value, prototype_value, core_data_mode) {
-      return new SQL(core_data_mode).convert_from_sqlite(value, prototype_value);
-    },
-    populate_predicate: function populate_predicate(predicate, obj, core_data_mode) {
-      return new SQL(core_data_mode).populate_predicate(predicate, obj);
-    }
-  });
+  exports.SQL = SQL;
+  exports.select = function select(table, predicate, core_data_mode) {
+    return new SQL(core_data_mode).select(table, predicate);
+  };
+  exports.insert = function insert(table, obj, core_data_mode) {
+    return new SQL(core_data_mode).insert(table, obj);
+  };
+  exports.create_table = function create_table(table, obj, core_data_mode) {
+    return new SQL(core_data_mode).create_table(table, obj);
+  };
+  exports.add_column = function add_column(table, column, type, core_data_mode) {
+    return new SQL(core_data_mode).add_column(table, column, type);
+  };
+  exports.create_temp_table = function create_temp_table(table, obj, core_data_mode) {
+    return new SQL(core_data_mode).create_temp_table(table, obj);
+  };
+  exports.convert_to_sqlite = function convert_to_sqlite(value, core_data_mode) {
+    return new SQL(core_data_mode).convert_to_sqlite(value);
+  };
+  exports.convert_from_sqlite = function convert_from_sqlite(value, prototype_value, core_data_mode) {
+    return new SQL(core_data_mode).convert_from_sqlite(value, prototype_value);
+  };
 })();
