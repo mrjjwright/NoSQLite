@@ -9,6 +9,14 @@ The goal of NoSQLite is to exploit that even more than other SQLite libraries.
 * zero-schema - Just store my JS object in an intelligent way.
 * zero-SQL - just a simple DSL to find stuff, save stuff, or find_or_save stuff (ok remove stuff too).
 
+NoSQLite tries to as light and smart of a SQLite wrapper as possible by following SQLite best practices whenever possible.  This includes:
+
+* Always using prepared statements.
+* Running inside a SQLite `begin transaction`, `commit` whenever it makes sense.
+* Running everything in smart batches when possible, never using unnecessary memory.
+
+I am constantly studying SQLite best practices and other implementations to see what I can pull over.  I use this library for a production app and need optimum performance SQLite performance.
+
 Other goals
 ---------------
 
@@ -104,7 +112,7 @@ where
 * __convert_callback__ - a function that will take a row from the old table and return back the new object for that row.
 * __callback__ - a normal callback method `callback(err, res)` that will be called with a response of "success" when the migration completes.
 
-The migration will call the convert callback once to get the schema correct for the new recreated table and then call it again for the every row in the temp table.  The migration is written to be fast, by using a temporary table, and never loading all the records into memory at once.  Instead it steps through each row in the temp table, calls the convert_callback, and then inserts the row in another db connection.  This has been tested with 200,000 row table to run in 20 seconds with minimal memory used.  See the code and tests for more documentation.
+The migration will call the convert callback once to get the schema correct for the new recreated table and then call it again for the every row in the temp table.  The migration is written to be fast, by using a temporary table, and never loading all the records into memory at once.  Instead it steps through each row in the temp table, calls the convert_callback, and then inserts the row in another db connection.  This has been tested with a 200,000 row table to run in 20 seconds with minimal memory used.  See the code and tests for more documentation.
 
 Web mode
 ========================
@@ -140,7 +148,7 @@ Currently Requires
 ========================
 
 * [node](http://nodejs.org)
-* [CoffeeScript](http://jashkenas.github.com/coffee-script/) - fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
 * [node-sqlite](http://github.com/mrjjwright/nosqlite)  My fork of it. You will have to get it and compile the node bindings and put it in your node requires path.
+* [CoffeeScript](http://jashkenas.github.com/coffee-script/) - You don't need this to use NoSQLite, only to test it. CoffeeScript is a fun, clean way to write JavaScript.  Includes Cake to run the Cakefile and tests.
 * [restler](http://github.com/danwrong/restler) - only needed to execute the tests for web API.  Not needed otherwise.
-* (NoSQLite ships with these libraries but you don't need to install everything: [flow.js](http://github.com/willconant/flow-js), [underscore.js](http://documentcloud.github.com/underscore/), [Math.uuid.js](http://www.broofa.com/2008/09/javascript-uuid-function/)
+* (NoSQLite ships with these libraries so you don't need to install these: [flow.js](http://github.com/willconant/flow-js), [underscore.js](http://documentcloud.github.com/underscore/), [Math.uuid.js](http://www.broofa.com/2008/09/javascript-uuid-function/)
