@@ -91,6 +91,21 @@ Here are the options supported
 * __core_data_mode__ -By default this is false but if set to true, NoSQLite will generate all SQL with core data like schema compatibility.  This isn't fully tested yet but will be more as my personal project starts to work with Core Data more.  There are a few tests in `test_sql.js` that you can take a look at.
 
 
+Simple Migration
+======================================
+
+You can run a simple and fast data migration on any table with NoSQLite.  You can use this to change the schema of the table, or migrate data to a new format.  Simply call:
+	
+    db.migrate_table("foo", convert_callback, callback)
+
+where
+
+* __param1__ - is the name of the table you want migrate
+* __convert_callback__ - a function that will take a row from the old table and return back the new object for that row.
+* __callback__ - a normal callback method `callback(err, res)` that will be called with a response of "success" when the migration completes.
+
+The migration will call the convert callback once to get the schema correct for the new recreated table and then call it again for the every row in the temp table.  The migration is written to be fast, by using a temporary table, and never loading all the records into memory at once.  Instead it steps through each row in the temp table, calls the convert_callback, and then inserts the row in another db connection.  This has been tested with 200,000 row table to run in 20 seconds with minimal memory used.  See the code and tests for more documentation.
+
 Web mode
 ========================
 
