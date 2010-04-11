@@ -9,7 +9,7 @@ The goal of NoSQLite is to exploit that even more than other SQLite libraries.
 * zero-schema - Just store my JS object in an intelligent way.
 * zero-SQL - just a simple DSL to find stuff, save stuff, or find_or_save stuff (ok remove stuff too).
 
-NoSQLite tries to as light and smart of a SQLite wrapper as possible by following SQLite best practices whenever possible.  This includes:
+NoSQLite tries to as light and smart of a SQLite wrapper as possible by following SQLite best practices.  This includes:
 
 * Always using prepared statements.
 * Running inside a SQLite `begin transaction`, `commit` whenever it makes sense.
