@@ -10,7 +10,8 @@ class SQL
 		@core_data_mode: core_data_mode
 			
 	select: (table, predicate) ->
-		sql: "select rowid, * from " + @sql_name(table)
+		sql: "select rowid, * from " + @sql_name(table) 
+		
 		if (not predicate?) or _.isEmpty(predicate)
 			@escaped: sql
 			@placeholder: sql
@@ -23,29 +24,35 @@ class SQL
 		if not _.isArray(predicate) then predicates.push(predicate) else predicates: predicate
 		# generate the where clauses from what is passed in
 		ands_escaped: []
-		ands_placeholder: []
+		ands_index_placeholder: []
+		ands_name_placeholder: []
 		for predicate in predicates		
 			for key of predicate 
 				key_sql: @key_to_sql(key)
 				@values_escaped.push(@convert_to_sqlite(predicate[key]))
 				ands_escaped.push(key_sql + @convert_to_sqlite(predicate[key]))
-				ands_placeholder.push(key_sql + "?")
+				ands_index_placeholder.push(key_sql + "?")
+				ands_name_placeholder.push(key_sql + ":${key}")
 				@values.push(predicate[key])
 			
 		@escaped: sql + "(" + ands_escaped.join(" AND ") + ")"
-		@placeholder: sql + "(" + ands_placeholder.join(" AND ") + ")"
+		@index_placeholder: sql + "(" + ands_index_placeholder.join(" AND ") + ")"
+		@name_placeholder: sql + "(" + ands_name_placeholder.join(" AND ") + ")"
 		return this
 
 	insert: (table, obj) ->
 		sql: "insert or replace into " + @sql_name(table)
 		question_marks: []
+		names: []
 		for key of obj
 			@values.push(obj[key])
 			@values_escaped.push(@convert_to_sqlite(obj[key]))
 			@columns.push(@sql_name(key))
 			question_marks.push("?")
+			names.push(":${key}")
 		columns_sep: @columns.join(",")
-		@placeholder: sql + "(" + columns_sep + ") values ("  + question_marks.join(",") + ")"
+		@index_placeholder: sql + "(" + columns_sep + ") values ("  + question_marks.join(",") + ")"
+		@name_placeholder: sql + "(" + columns_sep + ") values ("  + names.join(", ") + ")"
 		@escaped: sql + "(" + columns_sep + ") values (" + @values_escaped.join(",") + ")"
 		return this
 	
@@ -83,7 +90,7 @@ class SQL
 	create_temp_table: (table, obj)->
 		# execute a pragma to get the number of cols in the old table
 		keys: key for key of obj
-		#keys: _.reject keys, (key) -> key is "rowid"
+		keys: _.reject keys, (key) -> key is "rowid"
 		temp_cols: keys.join(",")
 		return "create temporary table ${table}_backup(${temp_cols});"
 	
@@ -168,4 +175,5 @@ exports.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_m
 exports.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
 exports.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
 exports.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
+exports.populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
 

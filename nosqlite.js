@@ -1,5 +1,6 @@
 (function(){
   var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, flow, sql, sqlite, sys;
+  var __hasProp = Object.prototype.hasOwnProperty;
   require("./underscore");
   sql = require("./sql");
   require("./Math.uuid");
@@ -12,9 +13,10 @@
   // A library to make it as easy as possible to store and retrieve JS objects
   // from SQLite. Zero-configuration!
   // Attempts to store JS objects as intelligently as possible in SQLite.
-  NoSQLite = function NoSQLite(db_file, options, callback) {
-    var the_callback;
+  NoSQLite = function NoSQLite(db_file, options, the_callback) {
+    var callback;
     sys.debug("creating instance of NoSQLite");
+    this.db_file = db_file;
     this.db = new sqlite.Database();
     this.table_descriptions = [];
     this.options = {
@@ -22,16 +24,18 @@
       no_guid: false
     };
     if (_.isFunction(options)) {
-      the_callback = options;
+      callback = options;
     } else {
       if ((typeof options !== "undefined" && options !== null)) {
         this.options = _.extend(this.options, options);
       }
-      the_callback = callback;
-      //go ahead and open the db
+      callback = the_callback;
     }
+    //until we can get a truly async interface to sqlite
+    //process.nextTick ->
+    //callback(null, this)
     this.db.open(db_file, function() {
-      return the_callback();
+      return callback();
     });
     return this;
   };
@@ -57,8 +61,7 @@
     if (_.isFunction(predicate)) {
       callback = predicate;
     }
-    sys.p(select.escaped);
-    return db.query(select.escaped, function(error, results) {
+    return db.execute(select.escaped, function(error, results) {
       if ((typeof error !== "undefined" && error !== null)) {
         return callback(error);
       }
@@ -152,7 +155,7 @@
   // You can pass in an array of objects as well.	Each row will be inserted
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, in_transaction, the_callback) {
-    var _a, _b, _c, _d, _e, _f, _g, callback, db, inserts, o, self, table_obj, the_obj, tx_flag;
+    var _a, _b, _c, callback, db, o, objs, self, statement, tx_flag;
     //augment object with guid unless options say not to
     if (this.options.no_guid === false) {
       if (!_.isArray(obj)) {
@@ -171,84 +174,76 @@
       tx_flag = in_transaction;
       callback = the_callback;
     }
-    inserts = [];
     if (_.isArray(obj)) {
-      inserts = (function() {
-        _d = []; _f = obj;
-        for (_e = 0, _g = _f.length; _e < _g; _e++) {
-          table_obj = _f[_e];
-          _d.push(sql.insert(table, table_obj, this.options.core_data_mode));
-        }
-        return _d;
-      }).call(this);
+      objs = obj;
     }
     if (!_.isArray(obj)) {
-      inserts.push(sql.insert(table, obj, this.options.core_data_mode));
+      objs = [obj];
     }
-    the_obj = _.isArray(obj) ? obj[0] : obj;
     self = this;
     db = this.db;
+    statement = {};
     return flow.exec(function() {
       // start a transaction if we aren't in one
       if (!tx_flag) {
-        return db.query("begin transaction", this);
+        return db.execute("begin transaction;", this);
       } else {
         return this();
       }
     }, function() {
-      var self_this, try_first_one;
+      var prepare_statement, this_flow;
       // save the first one
-      self_this = this;
-      try_first_one = function try_first_one() {
-        return db.query(inserts[0].escaped, null, function(err, result) {
+      this_flow = this;
+      prepare_statement = function prepare_statement() {
+        var insert_sql;
+        insert_sql = sql.insert(table, objs[0], self.options.core_data_mode).name_placeholder;
+        //sys.debug insert_sql
+        return db.prepare(insert_sql, function(err, the_statement) {
           var compensating_sql;
           if ((typeof err !== "undefined" && err !== null)) {
             // This is NoSQLite, let's see if we can fix this!
-            compensating_sql = self.compensating_sql(table, the_obj, err);
+            compensating_sql = self.compensating_sql(table, objs[0], err);
             if ((typeof compensating_sql !== "undefined" && compensating_sql !== null)) {
-              return db.query(compensating_sql, null, function(err) {
+              return db.execute(compensating_sql, null, function(err) {
                 if ((typeof err !== "undefined" && err !== null)) {
                   if ((typeof callback !== "undefined" && callback !== null)) {
                     return callback(err);
                   }
                 } else {
-                  return try_first_one();
+                  return prepare_statement();
                 }
               });
             } else if ((typeof callback !== "undefined" && callback !== null)) {
               return callback(err);
             }
           } else {
-            return self_this();
+            statement = the_statement;
+            return this_flow(statement);
           }
         });
       };
-      return try_first_one();
+      return prepare_statement();
     }, function() {
-      var do_insert, self_this;
+      var this_flow;
       // save the rest
-      self_this = this;
-      do_insert = function do_insert(i) {
-        return db.query(inserts[i].escaped, function(err, result) {
-          if ((typeof err !== "undefined" && err !== null)) {
-            return callback(err);
-          }
-          if (i--) {
-            return do_insert(i);
-          } else {
-            return self_this();
-          }
+      this_flow = this;
+      return flow.serialForEach(objs, function(the_obj) {
+        var this_serial;
+        this_serial = this;
+        statement.reset();
+        self.bind_obj(statement, the_obj);
+        return statement.step(function() {
+          return this_serial();
         });
-      };
-      if (inserts.length > 1) {
-        return do_insert(inserts.length - 1);
-      } else {
-        return this();
-      }
+      }, function(error, res) {
+        if ((typeof error !== "undefined" && error !== null)) {
+          throw error;
+        }
+      }, this_flow);
     }, function() {
       // commit the transaction
       if (!tx_flag) {
-        return db.query("commit", this);
+        return db.execute("commit;", this);
       } else {
         return this();
       }
@@ -273,6 +268,25 @@
       }
     }).call(this);
     return compensating_sql;
+  };
+  // binds all the keys in an object to a statement
+  // by name
+  NoSQLite.prototype.bind_obj = function bind_obj(statement, obj) {
+    var _a, _b, i, key, num_of_keys, value;
+    num_of_keys = Object.keys(obj).length;
+    i = 0;
+    _a = []; _b = obj;
+    for (key in _b) { if (__hasProp.call(_b, key)) {
+      _a.push((function() {
+        value = obj[key];
+        if (!_.isString(value) && !_.isNumber(value)) {
+          value = JSON.stringify(value);
+          //sys.debug "Binding ${value} to :${key} "
+        }
+        return statement.bind((":" + (key)), value);
+      })());
+    }}
+    return _a;
   };
   // closes the underlying SQLite connection
   NoSQLite.prototype.close = function close() {
@@ -323,92 +337,126 @@
   // If any errors occur, callback(err) will be called.
   // (Based roughly on the approach detailed in http://www.sqlite.org/faq.html, question 11)
   NoSQLite.prototype.migrate_table = function migrate_table(table, convert_callback, callback) {
-    var row1, self, temp_table_name;
+    var db1, obj1, row1, self, statement, statement1, temp_table_name;
     self = this;
     row1 = {};
-    temp_table_name = "" + (table) + "_backup";
-    sys.debug("Migrating table: " + (table));
+    obj1 = {};
+    statement = {};
+    statement1 = {};
+    db1 = {};
+    temp_table_name = ("" + (table) + "_backup");
+    sys.debug(("Migrating table: " + (table)));
     return flow.exec(function() {
-      return self.db.query("begin transaction", this);
+      return self.db.execute("begin transaction", this);
     }, function() {
       var this_flow;
       // create the temp table
       this_flow = this;
       return self.find(table, {
-        rowid: 1
+        rowid: 2
       }, function(err, res) {
         var create_temp_table_sql;
         row1 = res[0];
+        delete row1.rowid;
         create_temp_table_sql = sql.create_temp_table(table, row1);
-        return self.db.query(create_temp_table_sql, this_flow);
+        return self.db.execute(create_temp_table_sql, this_flow);
       });
     }, function() {
-      var dump_sql, select_sql, this_flow;
+      var dump_sql, return_row_id, select_sql, this_flow;
       // dump all rows to the temp table
       this_flow = this;
-      select_sql = sql.select(table).escaped;
-      dump_sql = "insert into " + (temp_table_name) + " " + (select_sql) + ";";
-      return self.db.query(dump_sql, function(err, res) {
+      return_row_id = false;
+      select_sql = ("select * from " + (table));
+      dump_sql = ("insert into " + (temp_table_name) + " " + (select_sql) + ";");
+      return self.db.execute(dump_sql, function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           return callback(err);
         }
         return this_flow();
       });
     }, function() {
-      var create_table_sql, drop_table_sql, this_flow;
+      var drop_table_sql, this_flow;
       //drop and recreate the table
       this_flow = this;
-      create_table_sql = sql.create_table(table, row1).sql;
-      drop_table_sql = "drop table " + (table);
-      return self.db.query(drop_table_sql, function(err, res) {
+      drop_table_sql = ("drop table " + (table));
+      return self.db.execute(drop_table_sql, function(err, res) {
+        var create_table_sql;
         if ((typeof err !== "undefined" && err !== null)) {
           return callback(err);
         }
-        return self.db.query(create_table_sql, function(err, res) {
-          if ((typeof err !== "undefined" && err !== null)) {
-            return callback(err);
-          }
+        // we start with the first object to convert
+        // so we get the new schema correct
+        obj1 = convert_callback(row1);
+        create_table_sql = sql.create_table(table, obj1).sql;
+        return self.db.execute(create_table_sql, function(err) {
+          (typeof err !== "undefined" && err !== null) ? callback(err) : null;
           return this_flow();
         });
       });
     }, function() {
-      var in_transaction, new_obj, this_flow;
-      this_flow = this;
-      // convert and save the first row to new table
-      new_obj = convert_callback(row1);
-      in_transaction = true;
-      this_flow();
-      return self.save(table, new_obj, in_transaction, function(err, res) {
-        (typeof err !== "undefined" && err !== null) ? callback(err) : null;
-        return this_flow();
-      });
+      // commit and close the transaction
+      return self.db.execute("commit", this);
     }, function() {
       var this_flow;
+      // Prepare statements to
+      // Convert the rest of the rows and save to new table
       this_flow = this;
-      // convert the rest of the rows and save to new table
-      return self.find(temp_table_name, {
-        "rowid >": 0
-      }, function(err, res) {
-        var _a, _b, _c, _d, converted_obj, row;
-        if ((typeof err !== "undefined" && err !== null)) {
+      return self.db.prepare(("select * from " + (temp_table_name) + " where rowid > 1"), function(err, the_statement) {
+        if (((typeof err !== "undefined" && err !== null))) {
           return callback(err);
         }
-        res.length <= 1 ? this_flow() : null;
-        _a = []; _c = res;
-        for (_b = 0, _d = _c.length; _b < _d; _b++) {
-          row = _c[_b];
-          _a.push((function() {
-            converted_obj = convert_callback(row);
-            return self.save(table, converted_obj, function(err, res) {
-              (typeof err !== "undefined" && err !== null) ? callback(err) : null;
-              return this_flow();
-            });
-          }).call(this));
-        }
-        return _a;
+        statement = the_statement;
+        // open up another connection to the db
+        db1 = new sqlite.Database();
+        return db1.open(self.db_file, function() {
+          db1.execute("begin transaction");
+          return db1.prepare(sql.insert(table, obj1).name_placeholder, function(err, the_statement) {
+            if (((typeof err !== "undefined" && err !== null))) {
+              return callback(err);
+            }
+            statement1 = the_statement;
+            return this_flow();
+          });
+        });
       });
     }, function() {
-      return self.db.query("commit", function(err, res) {
+      var migrate_row, this_flow;
+      // Step through each row of the temp table
+      // , call the convert_callback
+      // , and then in another sqlite connection insert the row
+      // into the new table.
+      //  This way all rows are not read into memory
+      this_flow = this;
+      migrate_row = function migrate_row() {
+        return statement.step(function(err, row) {
+          var converted_obj;
+          if (!(typeof row !== "undefined" && row !== null)) {
+            return this_flow();
+          }
+          converted_obj = convert_callback(row);
+          statement1.reset();
+          self.bind_obj(statement1, converted_obj);
+          // step once to do the insert
+          return statement1.step(function() {
+            return migrate_row();
+          });
+        });
+      };
+      return migrate_row();
+    }, function() {
+      // clean up
+      return db1.execute("commit", function() {
+        return statement.finalize(function() {
+          return statement1.finalize(function() {
+            return db1.close(function() {
+              return this;
+            });
+          });
+        });
+      });
+    }, function() {
+      // drop the temp table and alert the callback
+      return self.db.execute(("drop table " + (temp_table_name)), function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           return callback(err);
         }
@@ -491,7 +539,7 @@
           response.writeHead(500, {
             "Content-Type": "text/plain"
           });
-          response.write("Unrecognized method: " + (url.query.method));
+          response.write(("Unrecognized method: " + (url.query.method)));
           return response.close();
         }
       });

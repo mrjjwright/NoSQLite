@@ -36,7 +36,7 @@ test_find: ->
 		db.save("log", log,  (res) ->
 			db.find("log", {text: "hello"}, (err, result) ->
 				db.close(->
-					assert.ok(result.text, "hello", "should find single object")
+					assert.equal(result.text, "hello", "should find single object")
 				)
 			)
 		)
@@ -65,7 +65,7 @@ test_save_cd: ->
 		}
 
 		db.save("log", log, (err, res) ->
-			assert.ok(res, "success", "should save single obj")
+			assert.equal(res, "success", "should save single obj")
 		)
 
 
@@ -92,7 +92,7 @@ test_save: ->
 		}
 
 		db.save("log", log, false, (err, res) ->
-			assert.ok(res, "success", "should save single obj")
+			assert.equal(res, "success", "should save single obj")
 			db.close()
 		)
 	
@@ -154,7 +154,7 @@ test_save_multiple: ->
 	
 
 		db.save("log", logs, false, (err, res) ->
-			assert.ok(res, "success", "should save multiple obj")
+			assert.equal(res, "success", "should save multiple obj")
 			db.close()
 		)
 
@@ -163,10 +163,9 @@ test_save_bulk: ->
 	db_file: "./test/test_save_bulk.db"
 	remove_file(db_file)
 	options: {}
-	options.no_guid: true
+	options.no_guid: false
 	
-	db: nosqlite.connect db_file, ->
-		nosqlite_db: nosqlite.connect(db,options)
+	db: nosqlite.connect db_file, options, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -185,11 +184,11 @@ test_save_bulk: ->
 		}
 	
 		logs: []
-		for i in [1..250000]
+		for i in [1..200000]
 			logs.push(_.clone(log))
 	
 		db.save("log", logs, false, (err, res) ->
-			assert.ok(res, "success", "should save 250000 log messages quickly")
+			assert.equal(res, "success", "should save 250000 log messages quickly")
 			db.close()
 		)
 
@@ -251,8 +250,7 @@ test_find_or_save: ->
 		]
 
 		db.find_or_save("log", {text: "hello"}, logs, (err, res) ->
-			sys.puts "hi " + res
-			assert.ok(res, 2, "should save not find these obj")
+			assert.equal(res, 2, "should save not find these obj")
 			db.close()
 		)
 
@@ -286,12 +284,12 @@ test_save_web: ->
 	
 		url: "http://localhost:5000?method=save&table=log"
 		rest.post(url, {data: JSON.stringify(log)}).addListener("complete", (data) ->
-			assert.ok(data, "success,", "should save record over http")
+			assert.equal(data, "success,", "should save record over http")
 			predicate: {text: "hello"}
 			find_url: "http://localhost:5000?method=find&table=log"
 			data = [predicate, log]
 			rest.post(find_url, {data: JSON.stringify(data)}).addListener("complete", (data) ->
-				assert.ok(data, JSON.stringify([log]), "should find record over http")
+				assert.equal(data, JSON.stringify([log]), "should find record over http")
 				server.close()
 			)
 		)
@@ -299,11 +297,13 @@ test_save_web: ->
 
 test_migration: ->
 	
-	db_file: "./test/test_migration.db"
-	remove_file(db_file)
+	db_file: "./test/test_save_bulk.db"
+	options: {}
+	options.no_guid: true
+	#remove_file(db_file)
 	
 	#create schema 1
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.connect db_file, options, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date(),
@@ -327,13 +327,13 @@ test_migration: ->
 		
 		db.save "log", log, false, (err, res) ->
 			db.migrate_table "log", convert_callback, (err, res)->
-				assert.ok(res, "success", "should migrate table from one schema to another")
+				if err? then sys.p err
+				assert.equal(res, "success", "should migrate table from one schema to another")
 
-
-
-#test_find()
-#test_find_or_save()
-#test_save()
-#test_save_multiple()
-test_migration()
+test_find()
+test_find_or_save()
+test_save()
+test_save_multiple()
+#test_migration()
+#test_save_bulk()
 #test_save_web()

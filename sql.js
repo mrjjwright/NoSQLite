@@ -12,7 +12,7 @@
     return this;
   };
   SQL.prototype.select = function select(table, predicate) {
-    var _a, _b, _c, _d, ands_escaped, ands_placeholder, key, key_sql, predicates, sql;
+    var _a, _b, _c, _d, ands_escaped, ands_index_placeholder, ands_name_placeholder, key, key_sql, predicates, sql;
     sql = "select rowid, * from " + this.sql_name(table);
     if ((!(typeof predicate !== "undefined" && predicate !== null)) || _.isEmpty(predicate)) {
       this.escaped = sql;
@@ -25,7 +25,8 @@
     !_.isArray(predicate) ? predicates.push(predicate) : (predicates = predicate);
     // generate the where clauses from what is passed in
     ands_escaped = [];
-    ands_placeholder = [];
+    ands_index_placeholder = [];
+    ands_name_placeholder = [];
     _b = predicates;
     for (_a = 0, _c = _b.length; _a < _c; _a++) {
       predicate = _b[_a];
@@ -34,27 +35,32 @@
         key_sql = this.key_to_sql(key);
         this.values_escaped.push(this.convert_to_sqlite(predicate[key]));
         ands_escaped.push(key_sql + this.convert_to_sqlite(predicate[key]));
-        ands_placeholder.push(key_sql + "?");
+        ands_index_placeholder.push(key_sql + "?");
+        ands_name_placeholder.push(key_sql + (":" + (key)));
         this.values.push(predicate[key]);
       }}
     }
     this.escaped = sql + "(" + ands_escaped.join(" AND ") + ")";
-    this.placeholder = sql + "(" + ands_placeholder.join(" AND ") + ")";
+    this.index_placeholder = sql + "(" + ands_index_placeholder.join(" AND ") + ")";
+    this.name_placeholder = sql + "(" + ands_name_placeholder.join(" AND ") + ")";
     return this;
   };
   SQL.prototype.insert = function insert(table, obj) {
-    var _a, columns_sep, key, question_marks, sql;
+    var _a, columns_sep, key, names, question_marks, sql;
     sql = "insert or replace into " + this.sql_name(table);
     question_marks = [];
+    names = [];
     _a = obj;
     for (key in _a) { if (__hasProp.call(_a, key)) {
       this.values.push(obj[key]);
       this.values_escaped.push(this.convert_to_sqlite(obj[key]));
       this.columns.push(this.sql_name(key));
       question_marks.push("?");
+      names.push((":" + (key)));
     }}
     columns_sep = this.columns.join(",");
-    this.placeholder = sql + "(" + columns_sep + ") values (" + question_marks.join(",") + ")";
+    this.index_placeholder = sql + "(" + columns_sep + ") values (" + question_marks.join(",") + ")";
+    this.name_placeholder = sql + "(" + columns_sep + ") values (" + names.join(", ") + ")";
     this.escaped = sql + "(" + columns_sep + ") values (" + this.values_escaped.join(",") + ")";
     return this;
   };
@@ -101,10 +107,12 @@
         _a.push(key);
       }}
       return _a;
-    }).call(this);
-    //keys: _.reject keys, (key) -> key is "rowid"
+    })();
+    keys = _.reject(keys, function(key) {
+      return key === "rowid";
+    });
     temp_cols = keys.join(",");
-    return "create temporary table " + (table) + "_backup(" + (temp_cols) + ");";
+    return ("create temporary table " + (table) + "_backup(" + (temp_cols) + ");");
   };
   // returns add_column sql for SQLite
   // see http://www.sqlite.org/lang_altertable.html
@@ -164,7 +172,7 @@
   SQL.prototype.sql_name = function sql_name(sql_name) {
     if (this.core_data_mode === true) {
       sql_name = sql_name.replace(/_/g, "");
-      return "Z" + (sql_name.toUpperCase());
+      return ("Z" + (sql_name.toUpperCase()));
     }
     return sql_name;
   };
@@ -218,5 +226,8 @@
   };
   exports.convert_from_sqlite = function convert_from_sqlite(value, prototype_value, core_data_mode) {
     return new SQL(core_data_mode).convert_from_sqlite(value, prototype_value);
+  };
+  exports.populate_predicate = function populate_predicate(predicate, obj, core_data_mode) {
+    return new SQL(core_data_mode).populate_predicate(predicate, obj);
   };
 })();

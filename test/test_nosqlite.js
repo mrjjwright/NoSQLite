@@ -42,7 +42,7 @@
           text: "hello"
         }, function(err, result) {
           return db.close(function() {
-            return assert.ok(result.text, "hello", "should find single object");
+            return assert.equal(result.text, "hello", "should find single object");
           });
         });
       });
@@ -77,7 +77,7 @@
         }
       };
       return db.save("log", log, function(err, res) {
-        return assert.ok(res, "success", "should save single obj");
+        return assert.equal(res, "success", "should save single obj");
       });
     });
     return db;
@@ -108,7 +108,7 @@
         }
       };
       return db.save("log", log, false, function(err, res) {
-        assert.ok(res, "success", "should save single obj");
+        assert.equal(res, "success", "should save single obj");
         return db.close();
       });
     });
@@ -177,7 +177,7 @@
         })
       ];
       return db.save("log", logs, false, function(err, res) {
-        assert.ok(res, "success", "should save multiple obj");
+        assert.equal(res, "success", "should save multiple obj");
         return db.close();
       });
     });
@@ -188,10 +188,9 @@
     db_file = "./test/test_save_bulk.db";
     remove_file(db_file);
     options = {};
-    options.no_guid = true;
-    db = nosqlite.connect(db_file, function() {
-      var _a, _b, _c, i, log, logs, nosqlite_db;
-      nosqlite_db = nosqlite.connect(db, options);
+    options.no_guid = false;
+    db = nosqlite.connect(db_file, options, function() {
+      var _a, _b, _c, i, log, logs;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -212,12 +211,12 @@
         }
       };
       logs = [];
-      _b = 1; _c = 250000;
+      _b = 1; _c = 200000;
       for (_a = 0, i = _b; (_b <= _c ? i <= _c : i >= _c); (_b <= _c ? i += 1 : i -= 1), _a++) {
         logs.push(_.clone(log));
       }
       return db.save("log", logs, false, function(err, res) {
-        assert.ok(res, "success", "should save 250000 log messages quickly");
+        assert.equal(res, "success", "should save 250000 log messages quickly");
         return db.close();
       });
     });
@@ -288,8 +287,7 @@
       return db.find_or_save("log", {
         text: "hello"
       }, logs, function(err, res) {
-        sys.puts("hi " + res);
-        assert.ok(res, 2, "should save not find these obj");
+        assert.equal(res, 2, "should save not find these obj");
         return db.close();
       });
     });
@@ -330,7 +328,7 @@
         data: JSON.stringify(log)
       }).addListener("complete", function(data) {
         var find_url, predicate;
-        assert.ok(data, "success,", "should save record over http");
+        assert.equal(data, "success,", "should save record over http");
         predicate = {
           text: "hello"
         };
@@ -339,7 +337,7 @@
         return rest.post(find_url, {
           data: JSON.stringify(data)
         }).addListener("complete", function(data) {
-          assert.ok(data, JSON.stringify([log]), "should find record over http");
+          assert.equal(data, JSON.stringify([log]), "should find record over http");
           return server.close();
         });
       });
@@ -347,11 +345,13 @@
     return db;
   };
   test_migration = function test_migration() {
-    var db, db_file;
-    db_file = "./test/test_migration.db";
-    remove_file(db_file);
+    var db, db_file, options;
+    db_file = "./test/test_save_bulk.db";
+    options = {};
+    options.no_guid = true;
+    //remove_file(db_file)
     //create schema 1
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.connect(db_file, options, function() {
       var convert_callback, log;
       log = {
         text: "hello",
@@ -378,16 +378,18 @@
       };
       return db.save("log", log, false, function(err, res) {
         return db.migrate_table("log", convert_callback, function(err, res) {
-          return assert.ok(res, "success", "should migrate table from one schema to another");
+          (typeof err !== "undefined" && err !== null) ? sys.p(err) : null;
+          return assert.equal(res, "success", "should migrate table from one schema to another");
         });
       });
     });
     return db;
   };
-  //test_find()
-  //test_find_or_save()
-  //test_save()
-  //test_save_multiple()
-  test_migration();
+  test_find();
+  test_find_or_save();
+  test_save();
+  test_save_multiple();
+  //test_migration()
+  //test_save_bulk()
   //test_save_web()
 })();

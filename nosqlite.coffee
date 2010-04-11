@@ -18,9 +18,9 @@ class NoSQLite
 	# params:
 	# * path to db.
 	# * (optional) If set to `true` will create a core data compatible schema.
-	constructor: (db_file, options, callback) ->
+	constructor: (db_file, options, the_callback) ->
 		sys.debug("creating instance of NoSQLite")
-		
+		@db_file = db_file
 		@db: new sqlite.Database()
 		@table_descriptions: []
 		@options = {
@@ -29,14 +29,16 @@ class NoSQLite
 		}
 
 		if	_.isFunction(options)
-			the_callback: options
+			callback: options
 		else 
 			@options: _.extend(@options, options) if options?
-			the_callback: callback
-		#go ahead and open the db
+			callback: the_callback
+			
+		#until we can get a truly async interface to sqlite
+		#process.nextTick ->
+			#callback(null, this)
 		@db.open db_file, ->
-			the_callback()
-		
+			callback()
 		
 	# Finds an object or objects in the SQLite by running a query 
 	# derived from the supplied predicate on the supplied table.  
@@ -52,8 +54,7 @@ class NoSQLite
 		self: this
 		callback: the_callback
 		callback: predicate if _.isFunction(predicate)
-		sys.p select.escaped
-		db.query select.escaped, (error, results) ->
+		db.execute select.escaped, (error, results) ->
 			if error? then return callback(error)
 			callback(null, results)
 		
@@ -159,51 +160,58 @@ class NoSQLite
 			tx_flag: in_transaction
 			callback: the_callback
 						
-		inserts: []
-		inserts: sql.insert(table, table_obj, @options.core_data_mode) for table_obj in obj if _.isArray(obj)
-		inserts.push(sql.insert(table, obj, @options.core_data_mode)) if not _.isArray(obj)
-		the_obj: if _.isArray(obj) then obj[0] else obj
+		objs = obj if _.isArray(obj)
+		objs = [obj] if not _.isArray(obj)
+				
 		self: this
 		db: @db
+		statement: {}
 
 		flow.exec(
 			->
 				# start a transaction if we aren't in one
 				if not tx_flag
-					db.query "begin transaction", this
+					db.execute "begin transaction;", this
 				else
 					this()
 			->
 				# save the first one
-				self_this: this
-				try_first_one: ->
-					db.query inserts[0].escaped, null, (err, result) ->
+				this_flow: this
+				prepare_statement: ->
+					insert_sql = sql.insert(table, objs[0], self.options.core_data_mode).name_placeholder
+					#sys.debug insert_sql
+					db.prepare insert_sql, (err, the_statement) ->
 						if err?
 							# This is NoSQLite, let's see if we can fix this!
-							compensating_sql: self.compensating_sql(table, the_obj, err) 
+							compensating_sql: self.compensating_sql(table, objs[0], err) 
 							if compensating_sql?
-								db.query compensating_sql, null, (err) ->
+								db.execute compensating_sql, null, (err) ->
 									if err? then callback(err) if callback?
-									else try_first_one()
+									else prepare_statement()
 							else
 								callback(err) if callback?
-						else 
-							self_this()
-				try_first_one()
+						else
+							statement: the_statement
+							this_flow(statement)
+				prepare_statement()
 			->
 				# save the rest
-				self_this: this
-				do_insert: (i) ->
-					db.query inserts[i].escaped, (err, result) ->
-						if err? then return callback(err)
-						if i-- then do_insert(i)
-						else self_this()
-				if inserts.length > 1 then do_insert(inserts.length-1)
-				else this()
+				this_flow: this
+				flow.serialForEach(objs, 
+					(the_obj) ->
+						this_serial: this
+						statement.reset()
+						self.bind_obj statement, the_obj
+						statement.step ->
+							this_serial()
+					(error, res) ->
+						if error? then throw error
+					this_flow
+				)
 			->
 				# commit the transaction
 				if not tx_flag
-					db.query "commit", this
+					db.execute "commit;", this
 				else
 					this()
 			->
@@ -220,7 +228,19 @@ class NoSQLite
 				when NO_SUCH_COLUMN then sql.add_column(table, @errobj.column, null, @options.core_data_mode).sql
 				else null
 			
-					
+		
+	# binds all the keys in an object to a statement
+	# by name
+	bind_obj: (statement, obj) ->
+		num_of_keys: Object.keys(obj).length
+		i: 0
+		for key of obj
+			value: obj[key]
+			if not _.isString(value) && not _.isNumber(value)
+				value: JSON.stringify(value)
+			#sys.debug "Binding ${value} to :${key} "
+			statement.bind ":${key}", value
+				
 	# closes the underlying SQLite connection
 	close: ->
 		@db.close(->
@@ -269,58 +289,86 @@ class NoSQLite
 	migrate_table: (table, convert_callback, callback) ->
 		self: this
 		row1: {}
+		obj1: {}
+		statement: {}
+		statement1: {}
+		db1: {}
 		temp_table_name: "${table}_backup"
 		sys.debug "Migrating table: ${table}"
 		flow.exec(
 			->
-				self.db.query "begin transaction", this
+				self.db.execute "begin transaction", this
 			->
 				# create the temp table
 				this_flow: this
-				self.find table, {rowid: 1}, (err, res) ->
+				self.find table, {rowid: 2}, (err, res) ->
 					row1: res[0]
+					delete row1.rowid
 					create_temp_table_sql: sql.create_temp_table(table, row1)
-					self.db.query create_temp_table_sql, this_flow
+					self.db.execute create_temp_table_sql, this_flow
 			->
 				# dump all rows to the temp table 
 				this_flow: this
-				select_sql: sql.select(table).escaped
+				return_row_id: false
+				select_sql: "select * from ${table}"
 				dump_sql: "insert into ${temp_table_name} ${select_sql};"
-				self.db.query dump_sql, (err, res) ->
+				self.db.execute dump_sql, (err, res) ->
 					if err? then return callback(err)
 					this_flow()
 			->
 				#drop and recreate the table
 				this_flow: this
-				create_table_sql: sql.create_table(table, row1).sql
 				drop_table_sql: "drop table ${table}"
-				self.db.query drop_table_sql, (err, res) ->
+				self.db.execute drop_table_sql, (err, res) ->
 					if err? then return callback(err)
-					self.db.query create_table_sql, (err, res) ->
-						if err? then return callback(err)
+					# we start with the first object to convert
+					# so we get the new schema correct
+					obj1: convert_callback(row1)
+					create_table_sql: sql.create_table(table, obj1).sql
+					self.db.execute create_table_sql, (err) ->
+						if err? then callback(err)
 						this_flow()
 			->
-				this_flow: this
-				# convert and save the first row to new table
-				new_obj: convert_callback(row1)
-				in_transaction: true
-				this_flow()
-				self.save table, new_obj, in_transaction, (err, res) ->
-					if err? then callback(err)
-					this_flow()
+				# commit and close the transaction
+				self.db.execute "commit", this
 			->
+				# Prepare statements to 
+				# Convert the rest of the rows and save to new table
 				this_flow: this
-				# convert the rest of the rows and save to new table
-				self.find temp_table_name,  {"rowid >": 0}, (err, res) ->
-					if err? then return callback(err)
-					if res.length <= 1 then this_flow()
-					for row in res
-						converted_obj: convert_callback(row)
-						self.save table, converted_obj,	 (err, res) ->
-							if err? then callback(err)
+				self.db.prepare "select * from ${temp_table_name} where rowid > 1",  (err, the_statement) ->
+					if (err?) then return callback(err)
+					statement: the_statement
+					# open up another connection to the db
+					db1: new sqlite.Database()
+					db1.open self.db_file, ->
+						db1.execute "begin transaction"
+						db1.prepare sql.insert(table, obj1).name_placeholder, (err, the_statement) ->
+							if (err?) then return callback(err)
+							statement1: the_statement
 							this_flow()
 			->
-				self.db.query "commit", (err, res) ->
+				# Step through each row of the temp table 
+				# , call the convert_callback
+				# , and then in another sqlite connection insert the row
+				# into the new table. 
+				#  This way all rows are not read into memory
+				this_flow: this
+				migrate_row: ->
+					statement.step (err, row) ->
+						if not row? then return this_flow()
+						converted_obj: convert_callback(row)
+						statement1.reset()
+						self.bind_obj statement1, converted_obj
+						# step once to do the insert
+						statement1.step -> 
+							migrate_row()
+				migrate_row()
+			->
+				# clean up 
+				db1.execute "commit", -> statement.finalize -> statement1.finalize -> db1.close -> this
+			->
+				# drop the temp table and alert the callback
+				self.db.execute "drop table ${temp_table_name}", (err, res) ->
 					if err? then return callback(err)
 					callback(null, "success") if callback?
 		)

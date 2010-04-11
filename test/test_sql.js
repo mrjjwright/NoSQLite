@@ -15,7 +15,7 @@
   simple_obj = {
     test: "hello"
   };
-  assert.equal(sql.convert_from_sqlite(JSON.stringify(simple_obj), simple_obj), simple_obj, "if simple Object should return Object");
+  //assert.equal sql.convert_from_sqlite(JSON.stringify(simple_obj), simple_obj), simple_obj, "if simple Object should return Object"
   sys.puts("testing select");
   assert.equal(sql.select("log", {
     "external_id": 45
@@ -31,7 +31,10 @@
   }).escaped, "select rowid, * from log where(external_id = 'false')", "should handle predicate value = false");
   assert.equal(sql.select("log", {
     "external_id": false
-  }).placeholder, "select rowid, * from log where(external_id = ?)", "placeholder property should be set");
+  }).index_placeholder, "select rowid, * from log where(external_id = ?)", "index_placeholder property should be set");
+  assert.equal(sql.select("log", {
+    "external_id": false
+  }).name_placeholder, "select rowid, * from log where(external_id = :external_id)", "name_placeholder property should be set");
   assert.equal(sql.select("log", {
     "external_id": false
   }).values.length, 1, "values property should be array of right size");
@@ -44,7 +47,11 @@
   assert.equal(sql.insert("log", {
     text: "hello",
     log_type: "mumble"
-  }).placeholder, "insert or replace into log(text,log_type) values (?,?)", "insert placeholder should be correct");
+  }).index_placeholder, "insert or replace into log(text,log_type) values (?,?)", "insert index_placeholder should be correct");
+  assert.equal(sql.insert("log", {
+    text: "hello",
+    log_type: "mumble"
+  }).name_placeholder, "insert or replace into log(text,log_type) values (:text, :log_type)", "insert name_placeholder should be correct");
   assert.equal(sql.insert("log", {
     text: "hello",
     log_type: "mumble"
@@ -52,7 +59,7 @@
   assert.equal(sql.insert("log", {
     text: "hello",
     log_type: "mumble"
-  }, true).placeholder, "insert or replace into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode");
+  }, true).index_placeholder, "insert or replace into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode");
   sys.puts("testing create table");
   log = {
     text: "hello",
@@ -83,7 +90,7 @@
     some_other: 33,
     external_id: 46
   });
-  assert.equal(predicate, {
+  assert.deepEqual(predicate, {
     external_id: 46
   }, "should populate simple name, value objects correctly");
   predicate = sql.populate_predicate({
@@ -92,7 +99,7 @@
     some_other: 33,
     external_id: 46
   });
-  assert.equal(predicate, {
+  assert.deepEqual(predicate, {
     "external_id <": 46
   }, "should populate keys with operators correctly");
 })();
