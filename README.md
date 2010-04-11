@@ -15,7 +15,7 @@ NoSQLite tries to as light and smart of a SQLite wrapper as possible by followin
 * Running inside a SQLite `begin transaction`, `commit` whenever it makes sense.
 * Running everything in smart batches when possible, never using unnecessary memory.
 
-I am constantly studying SQLite best practices and other implementations to see what I can pull over.  I use this library for a production app and need optimum performance SQLite performance.
+I am constantly studying SQLite best practices and other implementations to see what I can pull over.  I use this library for a production app and need optimum SQLite performance.
 
 Other goals
 ---------------
