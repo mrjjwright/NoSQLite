@@ -353,7 +353,7 @@
       // create the temp table
       this_flow = this;
       return self.find(table, {
-        rowid: 2
+        rowid: 1
       }, function(err, res) {
         var create_temp_table_sql;
         row1 = res[0];
@@ -437,7 +437,10 @@
           statement1.reset();
           self.bind_obj(statement1, converted_obj);
           // step once to do the insert
-          return statement1.step(function() {
+          return statement1.step(function(err) {
+            if ((typeof err !== "undefined" && err !== null)) {
+              return callback(err);
+            }
             return migrate_row();
           });
         });
@@ -480,7 +483,7 @@
       });
       response.write(JSON.stringify(result));
     }
-    return response.close();
+    return response.end();
   };
   // Starts a webserver on the supplied port to serve http requests
   // for the instance's associated database.
@@ -507,7 +510,7 @@
           "Content-Type": "text/plain"
         });
         response.write("Must supply method param");
-        response.close();
+        response.end();
         return null;
       }
       table = url.query.table;
@@ -540,7 +543,7 @@
             "Content-Type": "text/plain"
           });
           response.write(("Unrecognized method: " + (url.query.method)));
-          return response.close();
+          return response.end();
         }
       });
     });

@@ -301,7 +301,7 @@ class NoSQLite
 			->
 				# create the temp table
 				this_flow: this
-				self.find table, {rowid: 2}, (err, res) ->
+				self.find table, {rowid: 1}, (err, res) ->
 					row1: res[0]
 					delete row1.rowid
 					create_temp_table_sql: sql.create_temp_table(table, row1)
@@ -360,7 +360,8 @@ class NoSQLite
 						statement1.reset()
 						self.bind_obj statement1, converted_obj
 						# step once to do the insert
-						statement1.step -> 
+						statement1.step (err) ->
+							return callback(err) if err?
 							migrate_row()
 				migrate_row()
 			->
@@ -384,7 +385,7 @@ class NoSQLite
 		else
 			response.writeHead(200, {"Content-Type": "text/plain"})
 			response.write(JSON.stringify(result))											
-		response.close();
+		response.end();
 
 	# Starts a webserver on the supplied port to serve http requests
 	# for the instance's associated database.
@@ -401,7 +402,7 @@ class NoSQLite
 			if not url.query?  or not url.query.method?
 				response.writeHead(500, {"Content-Type": "text/plain"})
 				response.write("Must supply method param")
-				response.close();
+				response.end();
 				return
 			table: url.query.table
 			# Parse the url to see what the user wants to do
@@ -429,7 +430,7 @@ class NoSQLite
 					else
 						response.writeHead(500, {"Content-Type": "text/plain"})
 						response.write("Unrecognized method: ${url.query.method}")
-						response.close();
+						response.end();
 		 )
 		server.listen(port, host)
 		return server	

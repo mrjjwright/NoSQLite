@@ -257,8 +257,7 @@ test_find_or_save: ->
 
 test_save_web: ->
 
-	db_file: "./test/test_save_web.db"
-	remove_file(db_file)
+	db_file: "./test/test_save_bulk.db"
 	rest: require "restler" if not rest?
 	
 	#start the listener
@@ -330,10 +329,10 @@ test_migration: ->
 				if err? then sys.p err
 				assert.equal(res, "success", "should migrate table from one schema to another")
 
-test_find()
-test_find_or_save()
-test_save()
-test_save_multiple()
+#test_find()
+#test_find_or_save()
+#test_save()
+#test_save_multiple()
 #test_migration()
 #test_save_bulk()
-#test_save_web()
+test_save_web()

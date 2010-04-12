@@ -295,8 +295,7 @@
   };
   test_save_web = function test_save_web() {
     var db, db_file, rest;
-    db_file = "./test/test_save_web.db";
-    remove_file(db_file);
+    db_file = "./test/test_save_bulk.db";
     if (!(typeof rest !== "undefined" && rest !== null)) {
       rest = require("restler");
     }
@@ -385,11 +384,11 @@
     });
     return db;
   };
-  test_find();
-  test_find_or_save();
-  test_save();
-  test_save_multiple();
+  //test_find()
+  //test_find_or_save()
+  //test_save()
+  //test_save_multiple()
   //test_migration()
   //test_save_bulk()
-  //test_save_web()
+  test_save_web();
 })();
