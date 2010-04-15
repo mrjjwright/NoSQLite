@@ -34,8 +34,8 @@
     //until we can get a truly async interface to sqlite
     //process.nextTick ->
     //callback(null, this)
-    this.db.open(db_file, function() {
-      return callback();
+    this.db.open(db_file, function(err) {
+      return callback(err);
     });
     return this;
   };
@@ -155,16 +155,16 @@
   // You can pass in an array of objects as well.	Each row will be inserted
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, in_transaction, the_callback) {
-    var _a, _b, _c, callback, db, o, objs, self, statement, tx_flag;
+    var _a, _b, _c, _d, callback, db, o, objs, self, statement, tx_flag;
     //augment object with guid unless options say not to
     if (this.options.no_guid === false) {
       if (!_.isArray(obj)) {
-        obj.guid = Math.uuidFast();
+        !(typeof (_a = obj.guid) !== "undefined" && _a !== null) ? (obj.guid = Math.uuidFast()) : null;
       } else {
-        _b = obj;
-        for (_a = 0, _c = _b.length; _a < _c; _a++) {
-          o = _b[_a];
-          o.guid = Math.uuidFast();
+        _c = obj;
+        for (_b = 0, _d = _c.length; _b < _d; _b++) {
+          o = _c[_b];
+          !o.guid ? (o.guid = Math.uuidFast()) : null;
         }
       }
     }
@@ -520,7 +520,7 @@
         return body += data;
       });
       return request.addListener("end", function() {
-        var _c, args, obj, predicate;
+        var _c, _d, args, obj, predicate, records_to_save;
         if ((_c = url.query.method) === "save") {
           obj = JSON.parse(body);
           return self.save(table, obj, function(err, result) {
@@ -528,11 +528,24 @@
           });
         } else if (_c === "find") {
           predicate = JSON.parse(body);
-          return self.find(table, predicate, function(err, result) {
-            if ((typeof result !== "undefined" && result !== null)) {
+          if ((typeof (_d = predicate.records) !== "undefined" && _d !== null)) {
+            // The client is sending some records to save along with asking for new records
+            // This is for convenience for clients that want to do a simple sync in one http call
+            records_to_save = predicate.records;
+            predicate = predicate.predicate;
+            return self.save(table, records_to_save, function(err, result) {
+              if ((typeof err !== "undefined" && err !== null)) {
+                return self.write_res(response, err);
+              }
+              return self.find(table, predicate, function(err, result) {
+                return self.write_res(response, err, result);
+              });
+            });
+          } else {
+            return self.find(table, predicate, function(err, result) {
               return self.write_res(response, err, result);
-            }
-          });
+            });
+          }
         } else if (_c === "find_or_save") {
           args = JSON.parse(body);
           return self.find_or_save(table, args[0], args[1], function(err, result) {

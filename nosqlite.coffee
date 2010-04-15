@@ -37,8 +37,8 @@ class NoSQLite
 		#until we can get a truly async interface to sqlite
 		#process.nextTick ->
 			#callback(null, this)
-		@db.open db_file, ->
-			callback()
+		@db.open db_file, (err) ->
+			callback(err)
 		
 	# Finds an object or objects in the SQLite by running a query 
 	# derived from the supplied predicate on the supplied table.  
@@ -150,9 +150,11 @@ class NoSQLite
 		#augment object with guid unless options say not to
 		if @options.no_guid is false 
 			if not _.isArray(obj)
-				obj.guid: Math.uuidFast() 
+				if not obj.guid?
+					obj.guid: Math.uuidFast() 
 			else for o in obj
-				o.guid: Math.uuidFast()
+				if not o.guid
+					o.guid: Math.uuidFast()
 		
 		tx_flag: false
 		callback: in_transaction
@@ -418,10 +420,19 @@ class NoSQLite
 						 )
 					when "find" 
 						predicate: JSON.parse(body)
-						self.find(table, predicate, (err, result) ->
-							if result?
+						if predicate.records?
+							# The client is sending some records to save along with asking for new records
+							# This is for convenience for clients that want to do a simple sync in one http call
+							records_to_save: predicate.records
+							predicate: predicate.predicate
+							self.save table, records_to_save, (err, result) ->
+								if err? then return self.write_res(response, err)
+								self.find table, predicate, (err, result) ->
+									self.write_res(response, err, result)
+						else
+							self.find table, predicate, (err, result) ->
 								self.write_res(response, err, result)
-						 )
+							 
 					when "find_or_save" 
 						args: JSON.parse(body)
 						self.find_or_save(table, args[0], args[1], (err, result) ->
