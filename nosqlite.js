@@ -476,7 +476,7 @@
       response.writeHead(500, {
         "Content-Type": "text/plain"
       });
-      response.write(err);
+      response.write(err.message);
     } else {
       response.writeHead(200, {
         "Content-Type": "text/plain"
