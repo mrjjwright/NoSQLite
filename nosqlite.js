@@ -491,9 +491,6 @@
   // this method returns silently.
   NoSQLite.prototype.listen = function listen(port, host) {
     var http, self, server;
-    if (!(typeof host !== "undefined" && host !== null)) {
-      host = "127.0.0.1";
-    }
     if (!(typeof port !== "undefined" && port !== null)) {
       port = 5000;
     }

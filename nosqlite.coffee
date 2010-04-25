@@ -394,7 +394,6 @@ class NoSQLite
 	# If NoSQLite has already started a webserver on that port
 	# this method returns silently. 
 	listen: (port, host) ->
-		host: "127.0.0.1" if not host?
 		port: 5000 if not port?
 		http: require "http" if not http?
 		self: this	
