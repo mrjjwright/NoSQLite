@@ -45,9 +45,13 @@
     this.name_placeholder = sql + "(" + ands_name_placeholder.join(" AND ") + ")";
     return this;
   };
-  SQL.prototype.insert = function insert(table, obj) {
+  SQL.prototype.insert = function insert(table, obj, replace_flag) {
     var _a, columns_sep, key, names, question_marks, sql;
-    sql = "insert or replace into " + this.sql_name(table);
+    sql = "insert ";
+    if (replace_flag) {
+      sql = sql + " or replace ";
+    }
+    sql = sql + "into " + this.sql_name(table);
     question_marks = [];
     names = [];
     _a = obj;

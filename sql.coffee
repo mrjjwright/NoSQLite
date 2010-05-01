@@ -40,8 +40,10 @@ class SQL
 		@name_placeholder: sql + "(" + ands_name_placeholder.join(" AND ") + ")"
 		return this
 
-	insert: (table, obj) ->
-		sql: "insert or replace into " + @sql_name(table)
+	insert: (table, obj, replace_flag) ->
+		sql: "insert "
+		sql: sql + " or replace " if replace_flag
+		sql: sql + "into " +  @sql_name(table)
 		question_marks: []
 		names: []
 		for key of obj

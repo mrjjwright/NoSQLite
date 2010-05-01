@@ -90,22 +90,7 @@
       var log;
       log = {
         text: "hello",
-        occurred_at: new Date().getTime(),
-        created_at: new Date().getTime(),
-        updated_at: new Date().getTime(),
-        source: "string1",
-        log_type: "string1",
-        geo_lat: "string1",
-        geo_long: "string1",
-        metric: 5,
-        external_id: 10,
-        level: 5,
-        readable_metric: "5 miles",
-        facts: ["hello", "hello", "hello1"],
-        original: {
-          id: 1,
-          text: "some crazy object"
-        }
+        created_at: new Date().getTime()
       };
       return db.save("log", log, false, function(err, res) {
         assert.equal(res, "success", "should save single obj");
@@ -188,7 +173,6 @@
     db_file = "./test/test_save_bulk.db";
     remove_file(db_file);
     options = {};
-    options.no_guid = false;
     db = nosqlite.connect(db_file, options, function() {
       var _a, _b, _c, i, log, logs;
       log = {
@@ -294,11 +278,8 @@
     return db;
   };
   test_save_web = function test_save_web() {
-    var db, db_file, rest;
+    var db, db_file;
     db_file = "./test/test_save_bulk.db";
-    if (!(typeof rest !== "undefined" && rest !== null)) {
-      rest = require("restler");
-    }
     //start the listener
     db = nosqlite.connect(db_file, function() {
       var log, server, url;
@@ -347,7 +328,6 @@
     var db, db_file, options;
     db_file = "./test/test_save_bulk.db";
     options = {};
-    options.no_guid = true;
     //remove_file(db_file)
     //create schema 1
     db = nosqlite.connect(db_file, options, function() {
@@ -386,9 +366,9 @@
   };
   //test_find()
   //test_find_or_save()
-  //test_save()
+  test_save();
   //test_save_multiple()
   //test_migration()
   //test_save_bulk()
-  test_save_web();
+  //test_save_web()
 })();

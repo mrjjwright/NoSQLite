@@ -1,9 +1,9 @@
 require "./underscore"
 sql: require "./sql"
-require "./Math.uuid"
 sys: require "sys"
 flow: require "./flow"
 sqlite: require "./sqlite"
+hashlib: require "./hashlib"
 
 # NoSQLite - SQLite for Javascript
 # ---------------------------------
@@ -25,7 +25,7 @@ class NoSQLite
 		@table_descriptions: []
 		@options = {
 			core_data_mode: false
-			no_guid: false
+			safe_mode: true
 		}
 
 		if	_.isFunction(options)
@@ -103,7 +103,7 @@ class NoSQLite
 				if not results? or (results? and _.isArray(results) and results.length is 0)
 					# The error could just be that the table doesn't exist in which 
 					# save will take care of it.
-					self.save(table, obj, (err, result)->
+					self.insert_object(table, obj, (err, result)->
 						if not err? then num_saved += 1
 						the_callback(err, result)
 					)
@@ -130,7 +130,7 @@ class NoSQLite
 	# Stores an object or objects in SQLite. 
 	# If the table doesn't exist, NoSQLite will create the table for you.
 	#
-	# If the objects already exist in the database NoSQL they will be updated because
+	# If the objects already exist in the database they will be updated because
 	# NoSQLite issues an "insert or replace"
 	#
 	# One table is created for the object with the name supplied in param table.
@@ -146,16 +146,9 @@ class NoSQLite
 	#
 	# As always, we'll call you back when everything is ready!
 	save: (table, obj, in_transaction, the_callback) ->
-	
-		#augment object with guid unless options say not to
-		if @options.no_guid is false 
-			if not _.isArray(obj)
-				if not obj.guid?
-					obj.guid: Math.uuidFast() 
-			else for o in obj
-				if not o.guid
-					o.guid: Math.uuidFast()
 		
+		#calculate obj_id for each of these rows
+		objects_hash: @store_hash(obj, "object_id") if @options.safe_mode
 		tx_flag: false
 		callback: in_transaction
 		if _.isBoolean(in_transaction)
@@ -172,32 +165,13 @@ class NoSQLite
 		flow.exec(
 			->
 				# start a transaction if we aren't in one
-				if not tx_flag
-					db.execute "begin transaction;", this
-				else
-					this()
+				if tx_flag then this()
+				db.execute "begin transaction;", this
 			->
-				# save the first one
-				this_flow: this
-				prepare_statement: ->
-					insert_sql = sql.insert(table, objs[0], self.options.core_data_mode).name_placeholder
-					#sys.debug insert_sql
-					db.prepare insert_sql, (err, the_statement) ->
-						if err?
-							# This is NoSQLite, let's see if we can fix this!
-							compensating_sql: self.compensating_sql(table, objs[0], err) 
-							if compensating_sql?
-								db.execute compensating_sql, null, (err) ->
-									if err? then callback(err) if callback?
-									else prepare_statement()
-							else
-								callback(err) if callback?
-						else
-							statement: the_statement
-							this_flow(statement)
-				prepare_statement()
-			->
-				# save the rest
+				# prepare the statement
+				self.prepare_statement(table, objs[0], this)
+			(err, statement) ->
+				# iterate through and save each object
 				this_flow: this
 				flow.serialForEach(objs, 
 					(the_obj) ->
@@ -211,17 +185,81 @@ class NoSQLite
 					this_flow
 				)
 			->
+				if tx_flag or not self.options.safe_mode then this()
+				# find the latest head, we will use this for the parent
+				self.find_or_save "nsl_head", {table_name: ""}, {table_name: "", head: ""}, this
+			(err, res) ->
+				if tx_flag or not self.options.safe_mode then this()
+				if err? then throw err
+				
+				# Save a commit object
+				if tx_flag then this()
+				#create and save the commit object
+				commit: {}
+				commit.table_name: table
+				commit.end_row: 33 #db.lastRowId()
+				commit.parent = res[0].head if res? and res.length is 1
+				commit.commit_id: self.store_hash(commit, "commit_id")
+				self.insert_object("nsl_commit", commit, this)
+			(err, commit) ->
+				if tx_flag or not self.options.safe_mode then this()
+				# update the head table with db head (table is empty)
+				self.insert_object("nsl_head", {table_name: "", head: commit.commit_id}, this)
+			(err, res)->
 				# commit the transaction
-				if not tx_flag
-					db.execute "commit;", this
-				else
-					this()
+				if tx_flag or not self.options.safe_mode then this()
+				if err? then throw err
+				db.execute "commit;", this
 			->
 				# callback to the user
 				callback(null, "success") if callback?
 		)
 		
-	
+	# Prepares a statement and returns it
+	# If the table doesn't exist, creates it 
+	prepare_statement: (table, obj, callback) ->
+		self: this
+		insert_sql = sql.insert(table, obj, self.options.core_data_mode).name_placeholder
+		sys.debug insert_sql
+		
+		do_work: ->
+			self.db.prepare insert_sql, (err, the_statement) ->
+				if err?
+					# This is NoSQLite, let's see if we can fix this!
+					compensating_sql: self.compensating_sql(table, obj, err) 
+					if compensating_sql?
+						self.db.execute compensating_sql, null, (err) ->
+							if err? then callback(err) if callback?
+							else do_work()
+					else
+						sys.debug(err)
+						return callback(err) if callback?
+				else
+					callback(null, the_statement)
+		do_work()
+		
+	# Inserts an object directly by escaping the values 
+	# Creates the table if it doesn't exist
+	# returns the object
+	insert_object: (table, obj, callback) ->
+		self: this
+		insert_sql = sql.insert(table, obj, self.options.core_data_mode).escaped
+		
+		do_work: ->
+			self.db.execute insert_sql, (err, res) ->
+				if err?
+					# This is NoSQLite, let's see if we can fix this!
+					compensating_sql: self.compensating_sql(table, obj, err) 
+					if compensating_sql?
+						self.db.execute compensating_sql, null, (err) ->
+							if err? then callback(err) if callback?
+							else do_work()
+					else
+						return callback(err) if callback?
+				else
+					callback(null, obj)
+		do_work()
+		
 	compensating_sql: (table, the_obj, the_err) ->
 		err: if the_err? and the_err.message? then the_err.message else the_err
 		@parse_error(err)
@@ -229,6 +267,35 @@ class NoSQLite
 				when NO_SUCH_TABLE then sql.create_table(table, the_obj, @options.core_data_mode).sql
 				when NO_SUCH_COLUMN then sql.add_column(table, @errobj.column, null, @options.core_data_mode).sql
 				else null
+	
+	# Stores a SHA-1 hash of the object on the objects object_id key
+	# object can be an array in which case the SHA_1 will be calculated on 
+	# each item of the array and a SHA_1 of all the object_ids will
+	# be returned
+	# the hash is stored on the property, hash name
+	store_hash: (object, hash_name) ->
+		if _.isArray(object) then obj_arr: object 
+		else obj_arr: [object]
+
+		hash_string: ""
+
+		for obj in obj_arr
+			sha1: @hash_object(obj)
+			obj[hash_name]: sha1
+			hash_string += sha1
+
+		return hashlib.sha1(hash_string)	
+
+	# Creates a SHA-1 hash of the object's contents 
+	# in the piped export format of SQLite.
+	hash_object: (object) ->
+		values: ""
+		i: 0
+		keys_length: Object.keys(object).length - 1
+		for key, value of object
+			values += value 
+			values += "|" if i++ < keys_length
+		return hashlib.sha1(values)
 			
 		
 	# binds all the keys in an object to a statement

@@ -1,12 +1,12 @@
 (function(){
-  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, flow, sql, sqlite, sys;
+  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, flow, hashlib, sql, sqlite, sys;
   var __hasProp = Object.prototype.hasOwnProperty;
   require("./underscore");
   sql = require("./sql");
-  require("./Math.uuid");
   sys = require("sys");
   flow = require("./flow");
   sqlite = require("./sqlite");
+  hashlib = require("./hashlib");
   // NoSQLite - SQLite for Javascript
   // ---------------------------------
   //
@@ -21,7 +21,7 @@
     this.table_descriptions = [];
     this.options = {
       core_data_mode: false,
-      no_guid: false
+      safe_mode: true
     };
     if (_.isFunction(options)) {
       callback = options;
@@ -110,7 +110,7 @@
         if (!(typeof results !== "undefined" && results !== null) || ((typeof results !== "undefined" && results !== null) && _.isArray(results) && results.length === 0)) {
           // The error could just be that the table doesn't exist in which
           // save will take care of it.
-          return self.save(table, obj, function(err, result) {
+          return self.insert_object(table, obj, function(err, result) {
             !(typeof err !== "undefined" && err !== null) ? num_saved += 1 : null;
             return the_callback(err, result);
           });
@@ -141,7 +141,7 @@
   };
   // Stores an object or objects in SQLite.
   // If the table doesn't exist, NoSQLite will create the table for you.
-  // If the objects already exist in the database NoSQL they will be updated because
+  // If the objects already exist in the database they will be updated because
   // NoSQLite issues an "insert or replace"
   // One table is created for the object with the name supplied in param table.
   // One column is created for each top-level attribute of the object.
@@ -155,18 +155,10 @@
   // You can pass in an array of objects as well.	Each row will be inserted
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, in_transaction, the_callback) {
-    var _a, _b, _c, _d, callback, db, o, objs, self, statement, tx_flag;
-    //augment object with guid unless options say not to
-    if (this.options.no_guid === false) {
-      if (!_.isArray(obj)) {
-        !(typeof (_a = obj.guid) !== "undefined" && _a !== null) ? (obj.guid = Math.uuidFast()) : null;
-      } else {
-        _c = obj;
-        for (_b = 0, _d = _c.length; _b < _d; _b++) {
-          o = _c[_b];
-          !o.guid ? (o.guid = Math.uuidFast()) : null;
-        }
-      }
+    var callback, db, objects_hash, objs, self, statement, tx_flag;
+    //calculate obj_id for each of these rows
+    if (this.options.safe_mode) {
+      objects_hash = this.store_hash(obj, "object_id");
     }
     tx_flag = false;
     callback = in_transaction;
@@ -185,47 +177,14 @@
     statement = {};
     return flow.exec(function() {
       // start a transaction if we aren't in one
-      if (!tx_flag) {
-        return db.execute("begin transaction;", this);
-      } else {
-        return this();
-      }
+      tx_flag ? this() : null;
+      return db.execute("begin transaction;", this);
     }, function() {
-      var prepare_statement, this_flow;
-      // save the first one
-      this_flow = this;
-      prepare_statement = function prepare_statement() {
-        var insert_sql;
-        insert_sql = sql.insert(table, objs[0], self.options.core_data_mode).name_placeholder;
-        //sys.debug insert_sql
-        return db.prepare(insert_sql, function(err, the_statement) {
-          var compensating_sql;
-          if ((typeof err !== "undefined" && err !== null)) {
-            // This is NoSQLite, let's see if we can fix this!
-            compensating_sql = self.compensating_sql(table, objs[0], err);
-            if ((typeof compensating_sql !== "undefined" && compensating_sql !== null)) {
-              return db.execute(compensating_sql, null, function(err) {
-                if ((typeof err !== "undefined" && err !== null)) {
-                  if ((typeof callback !== "undefined" && callback !== null)) {
-                    return callback(err);
-                  }
-                } else {
-                  return prepare_statement();
-                }
-              });
-            } else if ((typeof callback !== "undefined" && callback !== null)) {
-              return callback(err);
-            }
-          } else {
-            statement = the_statement;
-            return this_flow(statement);
-          }
-        });
-      };
-      return prepare_statement();
-    }, function() {
+      // prepare the statement
+      return self.prepare_statement(table, objs[0], this);
+    }, function(err, statement) {
       var this_flow;
-      // save the rest
+      // iterate through and save each object
       this_flow = this;
       return flow.serialForEach(objs, function(the_obj) {
         var this_serial;
@@ -241,18 +200,121 @@
         }
       }, this_flow);
     }, function() {
-      // commit the transaction
-      if (!tx_flag) {
-        return db.execute("commit;", this);
-      } else {
-        return this();
+      tx_flag || !self.options.safe_mode ? this() : null;
+      // find the latest head, we will use this for the parent
+      return self.find_or_save("nsl_head", {
+        table_name: ""
+      }, {
+        table_name: "",
+        head: ""
+      }, this);
+    }, function(err, res) {
+      var commit;
+      tx_flag || !self.options.safe_mode ? this() : null;
+      if ((typeof err !== "undefined" && err !== null)) {
+        throw err;
       }
+      // Save a commit object
+      tx_flag ? this() : null;
+      //create and save the commit object
+      commit = {};
+      commit.table_name = table;
+      commit.end_row = 33;
+      //db.lastRowId()
+      if ((typeof res !== "undefined" && res !== null) && res.length === 1) {
+        commit.parent = res[0].head;
+      }
+      commit.commit_id = self.store_hash(commit, "commit_id");
+      return self.insert_object("nsl_commit", commit, this);
+    }, function(err, commit) {
+      tx_flag || !self.options.safe_mode ? this() : null;
+      // update the head table with db head (table is empty)
+      return self.insert_object("nsl_head", {
+        table_name: "",
+        head: commit.commit_id
+      }, this);
+    }, function(err, res) {
+      // commit the transaction
+      tx_flag || !self.options.safe_mode ? this() : null;
+      if ((typeof err !== "undefined" && err !== null)) {
+        throw err;
+      }
+      return db.execute("commit;", this);
     }, function() {
       // callback to the user
       if ((typeof callback !== "undefined" && callback !== null)) {
         return callback(null, "success");
       }
     });
+  };
+  // Prepares a statement and returns it
+  // If the table doesn't exist, creates it
+  NoSQLite.prototype.prepare_statement = function prepare_statement(table, obj, callback) {
+    var do_work, insert_sql, self;
+    self = this;
+    insert_sql = sql.insert(table, obj, self.options.core_data_mode).name_placeholder;
+    sys.debug(insert_sql);
+    do_work = function do_work() {
+      return self.db.prepare(insert_sql, function(err, the_statement) {
+        var compensating_sql;
+        if ((typeof err !== "undefined" && err !== null)) {
+          // This is NoSQLite, let's see if we can fix this!
+          compensating_sql = self.compensating_sql(table, obj, err);
+          if ((typeof compensating_sql !== "undefined" && compensating_sql !== null)) {
+            self.db.execute(compensating_sql, null, function(err) {
+              if ((typeof err !== "undefined" && err !== null)) {
+                if ((typeof callback !== "undefined" && callback !== null)) {
+                  return callback(err);
+                }
+              } else {
+                return do_work();
+              }
+            });
+          } else {
+            sys.debug(err);
+            if ((typeof callback !== "undefined" && callback !== null)) {
+              return callback(err);
+            }
+          }
+        } else {
+          callback(null, the_statement);
+        }
+      });
+    };
+    return do_work();
+  };
+  // Inserts an object directly by escaping the values
+  // Creates the table if it doesn't exist
+  // returns the object
+  NoSQLite.prototype.insert_object = function insert_object(table, obj, callback) {
+    var do_work, insert_sql, self;
+    self = this;
+    insert_sql = sql.insert(table, obj, self.options.core_data_mode).escaped;
+    do_work = function do_work() {
+      return self.db.execute(insert_sql, function(err, res) {
+        var compensating_sql;
+        if ((typeof err !== "undefined" && err !== null)) {
+          // This is NoSQLite, let's see if we can fix this!
+          compensating_sql = self.compensating_sql(table, obj, err);
+          if ((typeof compensating_sql !== "undefined" && compensating_sql !== null)) {
+            self.db.execute(compensating_sql, null, function(err) {
+              if ((typeof err !== "undefined" && err !== null)) {
+                if ((typeof callback !== "undefined" && callback !== null)) {
+                  return callback(err);
+                }
+              } else {
+                return do_work();
+              }
+            });
+          } else if ((typeof callback !== "undefined" && callback !== null)) {
+            return callback(err);
+          }
+        } else {
+          callback(null, obj);
+        }
+      });
+    };
+    return do_work();
   };
   NoSQLite.prototype.compensating_sql = function compensating_sql(table, the_obj, the_err) {
     var _a, _b, compensating_sql, err;
@@ -268,6 +330,41 @@
       }
     }).call(this);
     return compensating_sql;
+  };
+  // Stores a SHA-1 hash of the object on the objects object_id key
+  // object can be an array in which case the SHA_1 will be calculated on
+  // each item of the array and a SHA_1 of all the object_ids will
+  // be returned
+  // the hash is stored on the property, hash name
+  NoSQLite.prototype.store_hash = function store_hash(object, hash_name) {
+    var _a, _b, _c, hash_string, obj, obj_arr, sha1;
+    _.isArray(object) ? (obj_arr = object) : (obj_arr = [object]);
+    hash_string = "";
+    _b = obj_arr;
+    for (_a = 0, _c = _b.length; _a < _c; _a++) {
+      obj = _b[_a];
+      sha1 = this.hash_object(obj);
+      obj[hash_name] = sha1;
+      hash_string += sha1;
+    }
+    return hashlib.sha1(hash_string);
+  };
+  // Creates a SHA-1 hash of the object's contents
+  // in the piped export format of SQLite.
+  NoSQLite.prototype.hash_object = function hash_object(object) {
+    var _a, i, key, keys_length, value, values;
+    values = "";
+    i = 0;
+    keys_length = Object.keys(object).length - 1;
+    _a = object;
+    for (key in _a) { if (__hasProp.call(_a, key)) {
+      value = _a[key];
+      values += value;
+      if (i++ < keys_length) {
+        values += "|";
+      }
+    }}
+    return hashlib.sha1(values);
   };
   // binds all the keys in an object to a statement
   // by name

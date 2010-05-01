@@ -76,19 +76,7 @@ test_save: ->
 	db: nosqlite.connect db_file, ->
 		log: {
 			text: "hello",
-			occurred_at: new Date().getTime(),
 			created_at: new Date().getTime(),
-			updated_at: new Date().getTime(),
-			source: "string1",
-			log_type: "string1",
-			geo_lat: "string1",
-			geo_long: "string1",
-			metric:  5,
-			external_id: 10,
-			level: 5,
-			readable_metric: "5 miles",
-			facts: ["hello", "hello", "hello1"],
-			original: {id: 1, text: "some crazy object"} 
 		}
 
 		db.save("log", log, false, (err, res) ->
@@ -163,7 +151,6 @@ test_save_bulk: ->
 	db_file: "./test/test_save_bulk.db"
 	remove_file(db_file)
 	options: {}
-	options.no_guid: false
 	
 	db: nosqlite.connect db_file, options, ->
 		log: {
@@ -258,7 +245,6 @@ test_find_or_save: ->
 test_save_web: ->
 
 	db_file: "./test/test_save_bulk.db"
-	rest: require "restler" if not rest?
 	
 	#start the listener
 	db: nosqlite.connect db_file, ->
@@ -298,7 +284,6 @@ test_migration: ->
 	
 	db_file: "./test/test_save_bulk.db"
 	options: {}
-	options.no_guid: true
 	#remove_file(db_file)
 	
 	#create schema 1
@@ -331,8 +316,8 @@ test_migration: ->
 
 #test_find()
 #test_find_or_save()
-#test_save()
+test_save()
 #test_save_multiple()
 #test_migration()
 #test_save_bulk()
-test_save_web()
+#test_save_web()
