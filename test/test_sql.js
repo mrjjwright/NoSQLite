@@ -19,22 +19,22 @@
   sys.puts("testing select");
   assert.equal(sql.select("log", {
     "external_id": 45
-  }).escaped, "select rowid, * from log where(external_id is 45)", "should handle value is number");
+  }).escaped, "select rowid, * from log where(external_id = 45)", "should handle value = number");
   assert.equal(sql.select("log", {
     "external_id": "45"
-  }).escaped, "select rowid, * from log where(external_id is '45')", "should handle value is string");
+  }).escaped, "select rowid, * from log where(external_id = '45')", "should handle value = string");
   assert.equal(sql.select("log", {
     "external_id": true
-  }).escaped, "select rowid, * from log where(external_id is 'true')", "should handle predicate value is true");
+  }).escaped, "select rowid, * from log where(external_id = 'true')", "should handle predicate value = true");
   assert.equal(sql.select("log", {
     "external_id": false
-  }).escaped, "select rowid, * from log where(external_id is 'false')", "should handle predicate value is false");
+  }).escaped, "select rowid, * from log where(external_id = 'false')", "should handle predicate value = false");
   assert.equal(sql.select("log", {
     "external_id": false
-  }).index_placeholder, "select rowid, * from log where(external_id is ?)", "index_placeholder property should be set");
+  }).index_placeholder, "select rowid, * from log where(external_id = ?)", "index_placeholder property should be set");
   assert.equal(sql.select("log", {
     "external_id": false
-  }).name_placeholder, "select rowid, * from log where(external_id is :external_id)", "name_placeholder property should be set");
+  }).name_placeholder, "select rowid, * from log where(external_id = :external_id)", "name_placeholder property should be set");
   assert.equal(sql.select("log", {
     "external_id": false
   }).values.length, 1, "values property should be array of right size");
@@ -42,7 +42,7 @@
   assert.equal(sql.select("log", []).escaped, "select rowid, * from log", "empty array predicate should leave off where clause");
   assert.equal(sql.select("log", {
     "external_id": 45
-  }, true).escaped, "select rowid, * from ZLOG where(ZEXTERNALID is 45)", "should convert to Core Data mode");
+  }, true).escaped, "select rowid, * from ZLOG where(ZEXTERNALID = 45)", "should convert to Core Data mode");
   sys.puts("testing insert");
   assert.equal(sql.insert("log", {
     text: "hello",
@@ -59,7 +59,7 @@
   assert.equal(sql.insert("log", {
     text: "hello",
     log_type: "mumble"
-  }, true).index_placeholder, "insert into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode");
+  }, false, true).index_placeholder, "insert into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode");
   sys.puts("testing create table");
   log = {
     text: "hello",

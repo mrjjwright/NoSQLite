@@ -45,10 +45,10 @@
     this.name_placeholder = sql + "(" + ands_name_placeholder.join(" AND ") + ")";
     return this;
   };
-  SQL.prototype.insert = function insert(table, obj, replace_flag) {
+  SQL.prototype.insert = function insert(table, obj, replace) {
     var _a, columns_sep, key, names, question_marks, sql;
     sql = "insert ";
-    if (replace_flag) {
+    if (replace) {
       sql = sql + " or replace ";
     }
     sql = sql + "into " + this.sql_name(table);
@@ -131,12 +131,14 @@
     var operand, operator, p;
     p = key.indexOf(' ');
     if (p === -1) {
-      return this.sql_name(key) + " is ";
+      return this.sql_name(key) + " = ";
     }
-    operator = key.substr(p + 1);
-    operand = key.substr(0, p);
-    if ((['<', '>', '=', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)) {
+    operator = key.substr(p + 1).trim();
+    operand = key.substr(0, p).trim();
+    if ((['<', '>', '=', 'is', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)) {
       return this.sql_name(operand) + " " + operator + " ";
+    } else {
+      throw new Error("Invalid predicate operator: " + operator);
     }
     if (operator === '%') {
       return this.sql_name(operand) + " LIKE ";
@@ -213,8 +215,8 @@
   exports.select = function select(table, predicate, core_data_mode) {
     return new SQL(core_data_mode).select(table, predicate);
   };
-  exports.insert = function insert(table, obj, core_data_mode) {
-    return new SQL(core_data_mode).insert(table, obj);
+  exports.insert = function insert(table, obj, replace, core_data_mode) {
+    return new SQL(core_data_mode).insert(table, obj, replace);
   };
   exports.create_table = function create_table(table, obj, core_data_mode) {
     return new SQL(core_data_mode).create_table(table, obj);

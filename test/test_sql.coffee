@@ -17,22 +17,22 @@ simple_obj: {test: "hello"}
 
 
 sys.puts "testing select"	
-assert.equal sql.select("log", {"external_id": 45}).escaped, "select rowid, * from log where(external_id is 45)", "should handle value is number"
-assert.equal sql.select("log", {"external_id": "45"}).escaped, "select rowid, * from log where(external_id is '45')", "should handle value is string"
-assert.equal sql.select("log", {"external_id": true}).escaped, "select rowid, * from log where(external_id is 'true')", "should handle predicate value is true"
-assert.equal sql.select("log", {"external_id": false}).escaped,  "select rowid, * from log where(external_id is 'false')", "should handle predicate value is false"
-assert.equal sql.select("log", {"external_id": false}).index_placeholder, "select rowid, * from log where(external_id is ?)", "index_placeholder property should be set"
-assert.equal sql.select("log", {"external_id": false}).name_placeholder, "select rowid, * from log where(external_id is :external_id)", "name_placeholder property should be set"
+assert.equal sql.select("log", {"external_id": 45}).escaped, "select rowid, * from log where(external_id = 45)", "should handle value = number"
+assert.equal sql.select("log", {"external_id": "45"}).escaped, "select rowid, * from log where(external_id = '45')", "should handle value = string"
+assert.equal sql.select("log", {"external_id": true}).escaped, "select rowid, * from log where(external_id = 'true')", "should handle predicate value = true"
+assert.equal sql.select("log", {"external_id": false}).escaped,  "select rowid, * from log where(external_id = 'false')", "should handle predicate value = false"
+assert.equal sql.select("log", {"external_id": false}).index_placeholder, "select rowid, * from log where(external_id = ?)", "index_placeholder property should be set"
+assert.equal sql.select("log", {"external_id": false}).name_placeholder, "select rowid, * from log where(external_id = :external_id)", "name_placeholder property should be set"
 assert.equal sql.select("log", {"external_id": false}).values.length, 1, "values property should be array of right size"
 assert.equal sql.select("log", {}).escaped, "select rowid, * from log", "empty object predicate should leave off where clause"
 assert.equal sql.select("log", []).escaped, "select rowid, * from log", "empty array predicate should leave off where clause"
-assert.equal sql.select("log", {"external_id": 45}, true).escaped, "select rowid, * from ZLOG where(ZEXTERNALID is 45)", "should convert to Core Data mode"
+assert.equal sql.select("log", {"external_id": 45}, true).escaped, "select rowid, * from ZLOG where(ZEXTERNALID = 45)", "should convert to Core Data mode"
 
 sys.puts "testing insert"
 assert.equal sql.insert("log", {text: "hello", log_type: "mumble"}).index_placeholder, "insert into log(text,log_type) values (?,?)", "insert index_placeholder should be correct"
 assert.equal sql.insert("log", {text: "hello", log_type: "mumble"}).name_placeholder, "insert into log(text,log_type) values (:text, :log_type)", "insert name_placeholder should be correct"
 assert.equal sql.insert("log", {text: "hello", log_type: "mumble"}).escaped, "insert into log(text,log_type) values ('hello','mumble')", "insert escaped should be correct"
-assert.equal sql.insert("log", {text: "hello", log_type: "mumble"}, true).index_placeholder, "insert into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode"
+assert.equal sql.insert("log", {text: "hello", log_type: "mumble"}, false, true).index_placeholder, "insert into ZLOG(ZTEXT,ZLOGTYPE) values (?,?)", "should produce valid insert SQL for Core Data mode"
 
 sys.puts "testing create table"
 log: {

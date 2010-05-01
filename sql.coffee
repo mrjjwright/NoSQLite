@@ -40,9 +40,9 @@ class SQL
 		@name_placeholder: sql + "(" + ands_name_placeholder.join(" AND ") + ")"
 		return this
 
-	insert: (table, obj, replace_flag) ->
+	insert: (table, obj, replace) ->
 		sql: "insert "
-		sql: sql + " or replace " if replace_flag
+		sql: sql + " or replace " if replace
 		sql: sql + "into " +  @sql_name(table)
 		question_marks: []
 		names: []
@@ -106,13 +106,14 @@ class SQL
 				
 	key_to_sql: (key) ->
 		p: key.indexOf(' ')
-		return @sql_name(key) + " is " if p is -1
+		return @sql_name(key) + " = " if p is -1
 	
-		operator: key.substr(p + 1)
-		operand: key.substr(0, p)
-	
-		if (['<', '>', '=', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)
+		operator: key.substr(p + 1).trim()
+		operand: key.substr(0, p).trim()
+		if (['<', '>', '=', 'is', '<=', '>=', '!=', '<>'].indexOf(operator) >= 0)
 			return @sql_name(operand) + " " + operator + " ";
+		else
+			throw new Error("Invalid predicate operator: " + operator)
 	
 		if operator is '%'
 			return @sql_name(operand) + " LIKE ";
@@ -171,7 +172,7 @@ class SQL
 			
 exports.SQL: SQL
 exports.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
-exports.insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
+exports.insert: (table, obj, replace, core_data_mode) -> new SQL(core_data_mode).insert(table, obj, replace)
 exports.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
 exports.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
 exports.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
