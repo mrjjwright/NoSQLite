@@ -106,7 +106,7 @@ class SQL
 				
 	key_to_sql: (key) ->
 		p: key.indexOf(' ')
-		return @sql_name(key) + " = " if p is -1
+		return @sql_name(key) + " is " if p is -1
 	
 		operator: key.substr(p + 1)
 		operand: key.substr(0, p)

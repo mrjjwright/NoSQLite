@@ -69,6 +69,26 @@ test_save_cd: ->
 		)
 
 
+test_update_object: ->
+	db_file: "./test/test_update_object.db"
+	remove_file(db_file)
+
+	db: nosqlite.connect db_file, ->
+		log: {
+			text: "hello",
+			created_at: new Date().getTime(),
+		}
+
+		db.save("log", log, false, (err, res) ->
+			assert.equal(res.length, 1, "should save single obj")
+			log: res[0]
+			log.text: "hello1"
+			db.save("log", log, false, (err, res) ->
+				assert.equal(res.length, 1, "should update single obj by adding a neew")
+				db.close()
+			)
+		)
+
 test_save: ->
 	db_file: "./test/test_save.db"
 	remove_file(db_file)
@@ -316,7 +336,8 @@ test_migration: ->
 
 #test_find()
 #test_find_or_save()
-test_save()
+#test_save()
+test_update_object()
 #test_save_multiple()
 #test_migration()
 #test_save_bulk()

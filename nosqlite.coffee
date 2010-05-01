@@ -147,8 +147,10 @@ class NoSQLite
 	# As always, we'll call you back when everything is ready!
 	save: (table, obj, in_transaction, the_callback) ->
 		
-		#calculate obj_id for each of these rows
-		objects_hash: @store_hash(obj, "object_id") if @options.safe_mode
+		# calculate SHA-1 for each of these rows
+		# and lookup any parent_hashes
+		objects_hash: @store_hash(obj) if @options.safe_mode
+		
 		tx_flag: false
 		callback: in_transaction
 		if _.isBoolean(in_transaction)
@@ -186,25 +188,36 @@ class NoSQLite
 				)
 			->
 				if tx_flag or not self.options.safe_mode then this()
-				# find the latest head, we will use this for the parent
-				self.find_or_save "nsl_head", {table_name: ""}, {table_name: "", head: ""}, this
+				# find the latest head of the db, we will use this for the parent
+				self.find "nsl_head", {table_name: undefined}, this
 			(err, res) ->
 				if tx_flag or not self.options.safe_mode then this()
-				if err? then throw err
+				# we ignore errors from the last step since the nsl_head might simply not exist
 				
 				# Save a commit object
 				if tx_flag then this()
 				#create and save the commit object
 				commit: {}
+				# we add a blank commit_id here just so that is the first column in the table
+				commit.hash: ""
 				commit.table_name: table
+				commit.created_at: new Date().toISOString()
+				commit.objects_hash: objects_hash 
+				commit.start_row: 0
 				commit.end_row: 33 #db.lastRowId()
-				commit.parent = res[0].head if res? and res.length is 1
-				commit.commit_id: self.store_hash(commit, "commit_id")
+				commit.parent: ""
+				sys.debug(sys.inspect(res))
+				commit.parent: res[0].head if res? and res.length is 1
+				sys.debug(res)
+				self.store_hash(commit)
 				self.insert_object("nsl_commit", commit, this)
 			(err, commit) ->
 				if tx_flag or not self.options.safe_mode then this()
-				# update the head table with db head (table is empty)
-				self.insert_object("nsl_head", {table_name: "", head: commit.commit_id}, this)
+				this_flow: this
+				# update the heads table with db head (table is empty)
+				self.insert_object "nsl_head", {table_name: undefined, head: commit.hash}, (err, res) ->
+					if err? then throw err
+					self.insert_object("nsl_head", {table_name: table, head: commit.hash}, this_flow)
 			(err, res)->
 				# commit the transaction
 				if tx_flag or not self.options.safe_mode then this()
@@ -212,7 +225,7 @@ class NoSQLite
 				db.execute "commit;", this
 			->
 				# callback to the user
-				callback(null, "success") if callback?
+				callback(null, objs) if callback?
 		)
 		
 	# Prepares a statement and returns it
@@ -220,7 +233,6 @@ class NoSQLite
 	prepare_statement: (table, obj, callback) ->
 		self: this
 		insert_sql = sql.insert(table, obj, self.options.core_data_mode).name_placeholder
-		sys.debug insert_sql
 		
 		do_work: ->
 			self.db.prepare insert_sql, (err, the_statement) ->
@@ -274,6 +286,7 @@ class NoSQLite
 	# be returned
 	# the hash is stored on the property, hash name
 	store_hash: (object, hash_name) ->
+		hash_name: "hash" if not hash_name?
 		if _.isArray(object) then obj_arr: object 
 		else obj_arr: [object]
 

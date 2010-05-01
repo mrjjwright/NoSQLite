@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web;
+  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -78,6 +78,28 @@
       };
       return db.save("log", log, function(err, res) {
         return assert.equal(res, "success", "should save single obj");
+      });
+    });
+    return db;
+  };
+  test_update_object = function test_update_object() {
+    var db, db_file;
+    db_file = "./test/test_update_object.db";
+    remove_file(db_file);
+    db = nosqlite.connect(db_file, function() {
+      var log;
+      log = {
+        text: "hello",
+        created_at: new Date().getTime()
+      };
+      return db.save("log", log, false, function(err, res) {
+        assert.equal(res.length, 1, "should save single obj");
+        log = res[0];
+        log.text = "hello1";
+        return db.save("log", log, false, function(err, res) {
+          assert.equal(res.length, 1, "should update single obj by adding a neew");
+          return db.close();
+        });
       });
     });
     return db;
@@ -366,7 +388,8 @@
   };
   //test_find()
   //test_find_or_save()
-  test_save();
+  //test_save()
+  test_update_object();
   //test_save_multiple()
   //test_migration()
   //test_save_bulk()

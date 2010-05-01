@@ -131,7 +131,7 @@
     var operand, operator, p;
     p = key.indexOf(' ');
     if (p === -1) {
-      return this.sql_name(key) + " = ";
+      return this.sql_name(key) + " is ";
     }
     operator = key.substr(p + 1);
     operand = key.substr(0, p);

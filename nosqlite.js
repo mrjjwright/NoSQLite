@@ -156,9 +156,10 @@
   // As always, we'll call you back when everything is ready!
   NoSQLite.prototype.save = function save(table, obj, in_transaction, the_callback) {
     var callback, db, objects_hash, objs, self, statement, tx_flag;
-    //calculate obj_id for each of these rows
+    // calculate SHA-1 for each of these rows
+    // and lookup any parent_hashes
     if (this.options.safe_mode) {
-      objects_hash = this.store_hash(obj, "object_id");
+      objects_hash = this.store_hash(obj);
     }
     tx_flag = false;
     callback = in_transaction;
@@ -201,38 +202,51 @@
       }, this_flow);
     }, function() {
       tx_flag || !self.options.safe_mode ? this() : null;
-      // find the latest head, we will use this for the parent
-      return self.find_or_save("nsl_head", {
-        table_name: ""
-      }, {
-        table_name: "",
-        head: ""
+      // find the latest head of the db, we will use this for the parent
+      return self.find("nsl_head", {
+        table_name: undefined
       }, this);
     }, function(err, res) {
       var commit;
       tx_flag || !self.options.safe_mode ? this() : null;
-      if ((typeof err !== "undefined" && err !== null)) {
-        throw err;
-      }
+      // we ignore errors from the last step since the nsl_head might simply not exist
       // Save a commit object
       tx_flag ? this() : null;
       //create and save the commit object
       commit = {};
+      // we add a blank commit_id here just so that is the first column in the table
+      commit.hash = "";
       commit.table_name = table;
+      commit.created_at = new Date().toISOString();
+      commit.objects_hash = objects_hash;
+      commit.start_row = 0;
       commit.end_row = 33;
       //db.lastRowId()
+      commit.parent = "";
+      sys.debug(sys.inspect(res));
       if ((typeof res !== "undefined" && res !== null) && res.length === 1) {
         commit.parent = res[0].head;
       }
-      commit.commit_id = self.store_hash(commit, "commit_id");
+      sys.debug(res);
+      self.store_hash(commit);
       return self.insert_object("nsl_commit", commit, this);
     }, function(err, commit) {
+      var this_flow;
       tx_flag || !self.options.safe_mode ? this() : null;
-      // update the head table with db head (table is empty)
+      this_flow = this;
+      // update the heads table with db head (table is empty)
       return self.insert_object("nsl_head", {
-        table_name: "",
-        head: commit.commit_id
-      }, this);
+        table_name: undefined,
+        head: commit.hash
+      }, function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        return self.insert_object("nsl_head", {
+          table_name: table,
+          head: commit.hash
+        }, this_flow);
+      });
     }, function(err, res) {
       // commit the transaction
       tx_flag || !self.options.safe_mode ? this() : null;
@@ -243,7 +257,7 @@
     }, function() {
       // callback to the user
       if ((typeof callback !== "undefined" && callback !== null)) {
-        return callback(null, "success");
+        return callback(null, objs);
       }
     });
   };
@@ -253,7 +267,6 @@
     var do_work, insert_sql, self;
     self = this;
     insert_sql = sql.insert(table, obj, self.options.core_data_mode).name_placeholder;
-    sys.debug(insert_sql);
     do_work = function do_work() {
       return self.db.prepare(insert_sql, function(err, the_statement) {
         var compensating_sql;
@@ -338,6 +351,9 @@
   // the hash is stored on the property, hash name
   NoSQLite.prototype.store_hash = function store_hash(object, hash_name) {
     var _a, _b, _c, hash_string, obj, obj_arr, sha1;
+    if (!(typeof hash_name !== "undefined" && hash_name !== null)) {
+      hash_name = "hash";
+    }
     _.isArray(object) ? (obj_arr = object) : (obj_arr = [object]);
     hash_string = "";
     _b = obj_arr;
