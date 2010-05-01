@@ -306,7 +306,7 @@ class NoSQLite
 
 		for obj in obj_arr
 			# move hash to parent
-			obj["parent"]: obj[hash_name] if obj[hash_name]? and obj.hash is not ""
+			obj["parent"]: obj[hash_name] if obj[hash_name]? and obj[hash_name] isnt ""
 			sha1: @hash_object(obj)
 			obj[hash_name]: sha1
 			hash_string += sha1

@@ -378,7 +378,7 @@
     for (_a = 0, _c = _b.length; _a < _c; _a++) {
       obj = _b[_a];
       // move hash to parent
-      if ((typeof (_d = obj[hash_name]) !== "undefined" && _d !== null) && obj.hash === !"") {
+      if ((typeof (_d = obj[hash_name]) !== "undefined" && _d !== null) && obj[hash_name] !== "") {
         obj["parent"] = obj[hash_name];
       }
       sha1 = this.hash_object(obj);
