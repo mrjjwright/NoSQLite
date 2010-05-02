@@ -147,9 +147,8 @@ class NoSQLite
 	# As always, we'll call you back when everything is ready!
 	save: (table, obj, in_transaction, the_callback) ->
 		
-		# calculate SHA-1 for each of these rows
-		# and lookup any parent_hashes
-		objects_hash: @store_hash(obj) if @options.safe_mode
+		# store special_cols
+		objects_hash: @store_special_cols(obj) if @options.safe_mode
 		
 		tx_flag: false
 		callback: in_transaction
@@ -165,6 +164,7 @@ class NoSQLite
 		statement: {}
 		table_head: {table_name: table, head: undefined}
 		db_head: {table_name: undefined, head: undefined}
+		commit: {}
 		
 		flow.exec(
 			->
@@ -203,7 +203,6 @@ class NoSQLite
 				# we ignore errors from the last step since the nsl_head might simply not exist
 				table_head: res[0] if res? and res.length is 1
 				#create and save the commit object
-				commit: {}
 				# we add a blank commit_id here just so that is the first column in the table
 				commit.hash: ""
 				commit.table_name: table
@@ -213,7 +212,7 @@ class NoSQLite
 				commit.end_row: 33 #db.lastRowId()
 				commit.parent: ""
 				commit.parent: db_head.head
-				self.store_hash(commit)
+				commit.hash : self.hash_object(commit)
 				self.insert_object("nsl_commit", commit, this)
 			(err, commit) ->
 				if tx_flag or not self.options.safe_mode then this()
@@ -224,6 +223,10 @@ class NoSQLite
 				self.insert_object "nsl_head", db_head, true, (err, res) ->
 					if err? then throw err
 					self.insert_object("nsl_head", table_head, true, this_flow)
+			(err, res)->
+				if tx_flag or not self.options.safe_mode then this()
+				if err? then throw err
+				self.db.execute("update log set commit_hash='${commit.hash}' where commit_hash='PENDING'", this)
 			(err, res)->
 				# commit the transaction
 				if tx_flag or not self.options.safe_mode then this()
@@ -297,8 +300,8 @@ class NoSQLite
 	# each item of the array and a SHA_1 of all the object_ids will
 	# be returned
 	# the hash is stored on the property, hash name
-	store_hash: (object, hash_name) ->
-		hash_name: "hash" if not hash_name?
+	store_special_cols: (object) ->
+		hash_name: "hash"
 		if _.isArray(object) then obj_arr: object 
 		else obj_arr: [object]
 
@@ -306,6 +309,7 @@ class NoSQLite
 
 		for obj in obj_arr
 			# move hash to parent
+			obj["commit_hash"]: "PENDING";
 			obj["parent"]: obj[hash_name] if obj[hash_name]? and obj[hash_name] isnt ""
 			sha1: @hash_object(obj)
 			obj[hash_name]: sha1
