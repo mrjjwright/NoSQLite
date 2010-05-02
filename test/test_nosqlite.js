@@ -389,9 +389,9 @@
   //test_find()
   //test_find_or_save()
   //test_save()
-  test_update_object();
+  //test_update_object()
   //test_save_multiple()
   //test_migration()
-  //test_save_bulk()
+  test_save_bulk();
   //test_save_web()
 })();
