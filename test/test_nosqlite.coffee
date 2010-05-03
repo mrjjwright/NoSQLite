@@ -81,10 +81,12 @@ test_update_object: ->
 
 		db.save("log", log, false, (err, res) ->
 			assert.equal(res.length, 1, "should save single obj")
+			object_hash: res[0].hash
 			log: res[0]
 			log.text: "hello1"
 			db.save("log", log, false, (err, res) ->
-				assert.equal(res.length, 1, "should update single obj by adding a neew")
+				assert.equal(res.length, 1, "should update single obj by adding a new")
+				assert.equal(res[0].parent, object_hash, "parent hash should be old version's hash")
 				db.close()
 			)
 		)
@@ -198,7 +200,77 @@ test_save_bulk: ->
 			assert.equal(res, "success", "should save 250000 log messages quickly")
 			db.close()
 		)
+		
+test_pull_objects: ->
 
+	db_file: "./test/test_pull_objects.db"
+	remove_file(db_file)
+
+	db: nosqlite.connect db_file, ->
+		logs: [
+			log: {
+				text: "hello",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			},
+		]
+		
+		logs2: [
+			log: {
+				text: "hello",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			},
+			log: {
+				text: "hello2",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			}
+		]
+		
+		db.save("log",  logs, (err, commit) ->
+			sys.debug(sys.inspect(commit))
+			#assert.equal(commit, "hello", "should store the first commit")
+			# store another commit
+			db.save "log", logs2, (err1, commit2) ->
+				db.pull_objects commit.hash, (err, objects) ->
+					assert.equal objects.length, 2, "should pull 2 objects object"
+					db.close()
+		)
+		
 
 test_find_or_save: ->
 	db_file: "./test/test_find_or_save.db"
@@ -338,7 +410,8 @@ test_migration: ->
 #test_find_or_save()
 #test_save()
 #test_update_object()
+test_pull_objects()
 #test_save_multiple()
 #test_migration()
-test_save_bulk()
+#test_save_bulk()
 #test_save_web()

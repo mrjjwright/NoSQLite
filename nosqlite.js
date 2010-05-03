@@ -236,9 +236,6 @@
       commit.table_name = table;
       commit.created_at = new Date().toISOString();
       commit.objects_hash = objects_hash;
-      commit.start_row = 0;
-      commit.end_row = 33;
-      //db.lastRowId()
       commit.parent = "";
       commit.parent = db_head.head;
       commit.hash = self.hash_object(commit);
@@ -272,7 +269,7 @@
     }, function() {
       // callback to the user
       if ((typeof callback !== "undefined" && callback !== null)) {
-        return callback(null, objs);
+        return callback(null, commit);
       }
     });
   };
@@ -341,8 +338,10 @@
                 return do_work();
               }
             });
-          } else if ((typeof callback !== "undefined" && callback !== null)) {
-            return callback(err);
+          } else {
+            if ((typeof callback !== "undefined" && callback !== null)) {
+              return callback(err);
+            }
           }
         } else {
           callback(null, obj);
@@ -605,6 +604,19 @@
           return callback(null, "success");
         }
       });
+    });
+  };
+  // Syncing code
+  // This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
+  // It works for all 3.  It's magic.
+  NoSQLite.prototype.pull_objects = function pull_objects(head, callback) {
+    var self;
+    self = this;
+    return self.db.execute("select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [head], function(err, res) {
+      if ((typeof err !== "undefined" && err !== null)) {
+        return callback(err);
+      }
+      return callback(null, res);
     });
   };
   // Web API

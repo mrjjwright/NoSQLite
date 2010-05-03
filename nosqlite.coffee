@@ -208,8 +208,6 @@ class NoSQLite
 				commit.table_name: table
 				commit.created_at: new Date().toISOString()
 				commit.objects_hash: objects_hash 
-				commit.start_row: 0
-				commit.end_row: 33 #db.lastRowId()
 				commit.parent: ""
 				commit.parent: db_head.head
 				commit.hash : self.hash_object(commit)
@@ -234,9 +232,10 @@ class NoSQLite
 				db.execute "commit;", this
 			->
 				# callback to the user
-				callback(null, objs) if callback?
+				callback(null, commit) if callback?
 		)
-		
+	
+	
 	# Prepares a statement and returns it
 	# If the table doesn't exist, creates it 
 	prepare_statement: (table, obj, callback) ->
@@ -363,7 +362,7 @@ class NoSQLite
 			@errobj.code = NO_SUCH_COLUMN
 			@errobj.column = err.split("no column named ")[1].trim()
 		else
-			@errobj.code = UNRECOGNIZED_ERROR
+			@errobj.code = UNRECOGNIZED_ERROR		
 
 	# Migrations
 	# -------------------------------------
@@ -474,7 +473,18 @@ class NoSQLite
 					callback(null, "success") if callback?
 		)
 		
-					
+		
+		
+	# Syncing code
+	# This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
+	# It works for all 3.  It's magic.
+	
+	pull_objects: (head, callback) ->
+		self: this
+		self.db.execute "select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [head], (err, res) ->
+			if err? then return callback(err)
+			callback(null, res)
+		
 
 	# Web API
 	# --------------------------------------

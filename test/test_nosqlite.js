@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
+  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_pull_objects, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -93,11 +93,14 @@
         created_at: new Date().getTime()
       };
       return db.save("log", log, false, function(err, res) {
+        var object_hash;
         assert.equal(res.length, 1, "should save single obj");
+        object_hash = res[0].hash;
         log = res[0];
         log.text = "hello1";
         return db.save("log", log, false, function(err, res) {
-          assert.equal(res.length, 1, "should update single obj by adding a neew");
+          assert.equal(res.length, 1, "should update single obj by adding a new");
+          assert.equal(res[0].parent, object_hash, "parent hash should be old version's hash");
           return db.close();
         });
       });
@@ -127,7 +130,8 @@
     remove_file(db_file);
     db = nosqlite.connect(db_file, function() {
       var log, logs;
-      logs = [(log = {
+      logs = [
+        (log = {
           text: "hello",
           occurred_at: new Date().getTime(),
           created_at: new Date().getTime(),
@@ -196,7 +200,7 @@
     remove_file(db_file);
     options = {};
     db = nosqlite.connect(db_file, options, function() {
-      var _a, _b, _c, i, log, logs;
+      var _a, _b, i, log, logs;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -217,13 +221,93 @@
         }
       };
       logs = [];
-      _b = 1; _c = 200000;
-      for (_a = 0, i = _b; (_b <= _c ? i <= _c : i >= _c); (_b <= _c ? i += 1 : i -= 1), _a++) {
+      _a = 1; _b = 200000;
+      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         logs.push(_.clone(log));
       }
       return db.save("log", logs, false, function(err, res) {
         assert.equal(res, "success", "should save 250000 log messages quickly");
         return db.close();
+      });
+    });
+    return db;
+  };
+  test_pull_objects = function test_pull_objects() {
+    var db, db_file;
+    db_file = "./test/test_pull_objects.db";
+    remove_file(db_file);
+    db = nosqlite.connect(db_file, function() {
+      var log, logs, logs2;
+      logs = [
+        (log = {
+          text: "hello",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        })
+      ];
+      logs2 = [
+        (log = {
+          text: "hello",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        }), (log = {
+          text: "hello2",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        })
+      ];
+      return db.save("log", logs, function(err, commit) {
+        sys.debug(sys.inspect(commit));
+        //assert.equal(commit, "hello", "should store the first commit")
+        // store another commit
+        return db.save("log", logs2, function(err1, commit2) {
+          return db.pull_objects(commit.hash, function(err, objects) {
+            assert.equal(objects.length, 2, "should pull 2 objects object");
+            return db.close();
+          });
+        });
       });
     });
     return db;
@@ -234,7 +318,8 @@
     remove_file(db_file);
     db = nosqlite.connect(db_file, function() {
       var log, logs;
-      logs = [(log = {
+      logs = [
+        (log = {
           text: "hello",
           occurred_at: new Date().getTime(),
           created_at: new Date().getTime(),
@@ -390,8 +475,9 @@
   //test_find_or_save()
   //test_save()
   //test_update_object()
+  test_pull_objects();
   //test_save_multiple()
   //test_migration()
-  test_save_bulk();
+  //test_save_bulk()
   //test_save_web()
 })();
