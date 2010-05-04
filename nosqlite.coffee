@@ -170,7 +170,7 @@ class NoSQLite
 			->
 				# start a transaction if we aren't in one
 				if tx_flag then this()
-				db.execute "begin transaction;", this
+				db.execute "begin exclusive transaction;", this
 			->
 				# prepare the statement
 				self.prepare_statement(table, objs[0], this)
@@ -364,127 +364,96 @@ class NoSQLite
 		else
 			@errobj.code = UNRECOGNIZED_ERROR		
 
-	# Migrations
-	# -------------------------------------
-	# A handy utility for doing a SQLite table data or schema migration.
-	# 
-	# If something goes wrong here at the wrong time, 
-	# not that it will, I know you have a backup. :)
-	# 
-	# First creates a temporary table and dumps all the rows from the old table.
-	# The old table is then dropped.
-	# 
-	# The convert_callback(old_obj) will then be called for the first row in 
-	# in the temp table.  The object returned by convert_callback 
-	# should implicitly describe (using nosqlite conventions, detailed in docs for save) 
-	# the new schema that will be used to create the new table.
-	# The first row will be inserted and convert_callback will be called for 
-	# for every other row in the temp table.  You can do data conversions in this callback
-	# 
-	# Finally, the temp table is deleted and the callback(err, res) function is called.
-	# If any errors occur, callback(err) will be called.
-	#
-	# (Based roughly on the approach detailed in http://www.sqlite.org/faq.html, question 11)
 	migrate_table: (table, convert_callback, callback) ->
 		self: this
-		row1: {}
-		obj1: {}
-		statement: {}
-		statement1: {}
-		db1: {}
 		temp_table_name: "${table}_backup"
 		sys.debug "Migrating table: ${table}"
-		flow.exec(
-			->
-				self.db.execute "begin transaction", this
-			->
-				# create the temp table
-				this_flow: this
-				self.find table, {rowid: 1}, (err, res) ->
-					row1: res[0]
-					delete row1.rowid
-					create_temp_table_sql: sql.create_temp_table(table, row1)
-					self.db.execute create_temp_table_sql, this_flow
-			->
-				# dump all rows to the temp table 
-				this_flow: this
-				return_row_id: false
-				select_sql: "select * from ${table}"
-				dump_sql: "insert into ${temp_table_name} ${select_sql};"
-				self.db.execute dump_sql, (err, res) ->
-					if err? then return callback(err)
-					this_flow()
-			->
-				#drop and recreate the table
-				this_flow: this
-				drop_table_sql: "drop table ${table}"
-				self.db.execute drop_table_sql, (err, res) ->
-					if err? then return callback(err)
-					# we start with the first object to convert
-					# so we get the new schema correct
-					obj1: convert_callback(row1)
-					create_table_sql: sql.create_table(table, obj1).sql
-					self.db.execute create_table_sql, (err) ->
-						if err? then callback(err)
-						this_flow()
-			->
-				# commit and close the transaction
-				self.db.execute "commit", this
-			->
-				# Prepare statements to 
-				# Convert the rest of the rows and save to new table
-				this_flow: this
-				self.db.prepare "select * from ${temp_table_name} where rowid > 1",  (err, the_statement) ->
-					if (err?) then return callback(err)
-					statement: the_statement
-					# open up another connection to the db
-					db1: new sqlite.Database()
-					db1.open self.db_file, ->
-						db1.execute "begin transaction"
-						db1.prepare sql.insert(table, obj1).name_placeholder, (err, the_statement) ->
-							if (err?) then return callback(err)
-							statement1: the_statement
-							this_flow()
-			->
-				# Step through each row of the temp table 
-				# , call the convert_callback
-				# , and then in another sqlite connection insert the row
-				# into the new table. 
-				#  This way all rows are not read into memory
-				this_flow: this
-				migrate_row: ->
-					statement.step (err, row) ->
-						if not row? then return this_flow()
-						converted_obj: convert_callback(row)
-						statement1.reset()
-						self.bind_obj statement1, converted_obj
-						# step once to do the insert
-						statement1.step (err) ->
-							return callback(err) if err?
-							migrate_row()
-				migrate_row()
-			->
-				# clean up 
-				db1.execute "commit", -> statement.finalize -> statement1.finalize -> db1.close -> this
-			->
-				# drop the temp table and alert the callback
-				self.db.execute "drop table ${temp_table_name}", (err, res) ->
-					if err? then return callback(err)
-					callback(null, "success") if callback?
-		)
-		
+		defer self.db.execute "begin exclusive transaction"
+
+		# 1. create the temp table
+		[err, res]: defer self.find table, {rowid: 1}
+		row1: res[0]
+		delete row1.rowid
+		create_temp_table_sql: sql.create_temp_table(table, row1)
+		defer self.db.execute create_temp_table_sql
+
+		# 2. dump all rows to the temp table 
+		return_row_id: false
+		select_sql: "select * from ${table}"
+		dump_sql: "insert into ${temp_table_name} ${select_sql};"
+		[err, res]: defer self.db.execute dump_sql
+		if err? then return callback(err)
+
+		# 3. drop and recreate the table
+		drop_table_sql: "drop table ${table}"
+		[err, res]: defer self.db.execute drop_table_sql
+		if err? then return callback(err)
+		# we use the first object to convert
+		# so we get the new schema correct
+		obj1: convert_callback(row1)
+		create_table_sql: sql.create_table(table, obj1).sql
+		err: defer self.db.execute create_table_sql
+		if err? then return callback(err)
+		# commit and close the transaction
+		defer self.db.execute "commit"
+
+		# 4. Prepare statements to 
+		# convert the rest of the rows and save to new table
+		[err, statement]: defer self.db.prepare "select * from ${temp_table_name} where rowid >= 1"
+		if err? then return callback(err)
+
+		# open up another connection to the db
+		db1: new sqlite.Database()
+		defer db1.open self.db_file
+		db1.execute "begin exclusive transaction"
+		[err, statement1]: defer db1.prepare sql.insert(table, obj1).name_placeholder
+		if err? then return callback(err)
+
+		# 5. Step through each row of the temp table 
+		# , call the convert_callback
+		# , and then in another sqlite connection insert the row
+		# into the new table. 
+		#  This way all rows are not read into memory
+		migrate_rows: ->
+			[err, row]: defer statement.step()
+			if not row? then return cleanup_and_callback()
+			try
+				converted_obj: convert_callback(row)
+			catch error
+				return callback(err)
+			statement1.reset()
+			self.bind_obj statement1, converted_obj
+			# step once to do the insert
+			err: defer statement1.step()
+			return callback(err) if err?
+			migrate_rows()
+		migrate_rows()
+
+		cleanup_and_callback: ->
+			# 6.clean up 
+			defer db1.execute "commit"
+			defer statement.finalize()
+			defer statement1.finalize()
+			defer db1.close()
+
+			# 7. drop the temp table and alert the callback
+			[err, res]: defer self.db.execute "drop table ${temp_table_name}"
+			if err? then return callback(err)
+			callback(null, "success") if callback?
 		
 		
 	# Syncing code
 	# This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
 	# It works for all 3.  It's magic.
 	
-	pull_objects: (head, callback) ->
+	# fetches all the objects after a certain commit hash
+	objects_since_commit: (commit_hash, callback) ->
 		self: this
-		self.db.execute "select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [head], (err, res) ->
+		self.db.execute "select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [commit_hash], (err, res) ->
 			if err? then return callback(err)
 			callback(null, res)
-		
+	#
+	
 
 	# Web API
 	# --------------------------------------

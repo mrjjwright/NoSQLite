@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_pull_objects, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
+  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -232,9 +232,9 @@
     });
     return db;
   };
-  test_pull_objects = function test_pull_objects() {
+  test_objects_since_commit = function test_objects_since_commit() {
     var db, db_file;
-    db_file = "./test/test_pull_objects.db";
+    db_file = "./test/test_objects_since_commit.db";
     remove_file(db_file);
     db = nosqlite.connect(db_file, function() {
       var log, logs, logs2;
@@ -303,7 +303,7 @@
         //assert.equal(commit, "hello", "should store the first commit")
         // store another commit
         return db.save("log", logs2, function(err1, commit2) {
-          return db.pull_objects(commit.hash, function(err, objects) {
+          return db.objects_since_commit(commit.hash, function(err, objects) {
             assert.equal(objects.length, 2, "should pull 2 objects object");
             return db.close();
           });
@@ -386,7 +386,8 @@
   };
   test_save_web = function test_save_web() {
     var db, db_file;
-    db_file = "./test/test_save_bulk.db";
+    db_file = "./test/test_save_web.db";
+    remove_file(db_file);
     //start the listener
     db = nosqlite.connect(db_file, function() {
       var log, server, url;
@@ -432,12 +433,11 @@
     return db;
   };
   test_migration = function test_migration() {
-    var db, db_file, options;
-    db_file = "./test/test_save_bulk.db";
-    options = {};
-    //remove_file(db_file)
+    var db, db_file;
+    db_file = "./test/test_migration.db";
+    remove_file(db_file);
     //create schema 1
-    db = nosqlite.connect(db_file, options, function() {
+    db = nosqlite.connect(db_file, function() {
       var convert_callback, log;
       log = {
         text: "hello",
@@ -459,7 +459,7 @@
         }
       };
       convert_callback = function convert_callback(old_obj) {
-        old_obj.occurred_at = "Date.parse(old_obj.ocurred_at).getTime()";
+        old_obj.occurred_at = "you big dork";
         return old_obj;
       };
       return db.save("log", log, false, function(err, res) {
@@ -475,9 +475,9 @@
   //test_find_or_save()
   //test_save()
   //test_update_object()
-  test_pull_objects();
+  //test_objects_since_commit()
   //test_save_multiple()
-  //test_migration()
+  test_migration();
   //test_save_bulk()
   //test_save_web()
 })();

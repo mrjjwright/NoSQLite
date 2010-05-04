@@ -201,9 +201,9 @@ test_save_bulk: ->
 			db.close()
 		)
 		
-test_pull_objects: ->
+test_objects_since_commit: ->
 
-	db_file: "./test/test_pull_objects.db"
+	db_file: "./test/test_objects_since_commit.db"
 	remove_file(db_file)
 
 	db: nosqlite.connect db_file, ->
@@ -266,7 +266,7 @@ test_pull_objects: ->
 			#assert.equal(commit, "hello", "should store the first commit")
 			# store another commit
 			db.save "log", logs2, (err1, commit2) ->
-				db.pull_objects commit.hash, (err, objects) ->
+				db.objects_since_commit commit.hash, (err, objects) ->
 					assert.equal objects.length, 2, "should pull 2 objects object"
 					db.close()
 		)
@@ -336,7 +336,8 @@ test_find_or_save: ->
 
 test_save_web: ->
 
-	db_file: "./test/test_save_bulk.db"
+	db_file: "./test/test_save_web.db"
+	remove_file(db_file)
 	
 	#start the listener
 	db: nosqlite.connect db_file, ->
@@ -374,12 +375,11 @@ test_save_web: ->
 
 test_migration: ->
 	
-	db_file: "./test/test_save_bulk.db"
-	options: {}
-	#remove_file(db_file)
+	db_file: "./test/test_migration.db"
+	remove_file(db_file)
 	
 	#create schema 1
-	db: nosqlite.connect db_file, options, ->
+	db: nosqlite.connect db_file,  ->
 		log: {
 			text: "hello",
 			occurred_at: new Date(),
@@ -398,7 +398,7 @@ test_migration: ->
 		}
 	
 		convert_callback: (old_obj) ->
-			old_obj.occurred_at: "Date.parse(old_obj.ocurred_at).getTime()"
+			old_obj.occurred_at: "you big dork"
 			return old_obj
 		
 		db.save "log", log, false, (err, res) ->
@@ -410,8 +410,8 @@ test_migration: ->
 #test_find_or_save()
 #test_save()
 #test_update_object()
-test_pull_objects()
+#test_objects_since_commit()
 #test_save_multiple()
-#test_migration()
+test_migration()
 #test_save_bulk()
 #test_save_web()

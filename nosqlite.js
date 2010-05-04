@@ -187,7 +187,7 @@
     return flow.exec(function() {
       // start a transaction if we aren't in one
       tx_flag ? this() : null;
-      return db.execute("begin transaction;", this);
+      return db.execute("begin exclusive transaction;", this);
     }, function() {
       // prepare the statement
       return self.prepare_statement(table, objs[0], this);
@@ -352,18 +352,17 @@
   };
   NoSQLite.prototype.compensating_sql = function compensating_sql(table, the_obj, the_err) {
     var _a, _b, compensating_sql, err;
-    err = (typeof the_err !== "undefined" && the_err !== null) && (typeof (_a = the_err.message) !== "undefined" && _a !== null) ? the_err.message : the_err;
+    err = (typeof the_err !== "undefined" && the_err !== null) && (typeof (_b = the_err.message) !== "undefined" && _b !== null) ? the_err.message : the_err;
     this.parse_error(err);
-    compensating_sql = (function() {
-      if ((_b = this.errobj.code) === NO_SUCH_TABLE) {
+    return compensating_sql = (function() {
+      if ((_a = this.errobj.code) === NO_SUCH_TABLE) {
         return sql.create_table(table, the_obj, this.options.core_data_mode).sql;
-      } else if (_b === NO_SUCH_COLUMN) {
+      } else if (_a === NO_SUCH_COLUMN) {
         return sql.add_column(table, this.errobj.column, null, this.options.core_data_mode).sql;
       } else {
         return null;
       }
     }).call(this);
-    return compensating_sql;
   };
   // Stores a SHA-1 hash of the object on the objects object_id key
   // object can be an array in which case the SHA_1 will be calculated on
@@ -453,170 +452,183 @@
       return this.errobj.code;
     }
   };
-  // Migrations
-  // -------------------------------------
-  // A handy utility for doing a SQLite table data or schema migration.
-  //
-  // If something goes wrong here at the wrong time,
-  // not that it will, I know you have a backup. :)
-  //
-  // First creates a temporary table and dumps all the rows from the old table.
-  // The old table is then dropped.
-  //
-  // The convert_callback(old_obj) will then be called for the first row in
-  // in the temp table.  The object returned by convert_callback
-  // should implicitly describe (using nosqlite conventions, detailed in docs for save)
-  // the new schema that will be used to create the new table.
-  // The first row will be inserted and convert_callback will be called for
-  // for every other row in the temp table.  You can do data conversions in this callback
-  //
-  // Finally, the temp table is deleted and the callback(err, res) function is called.
-  // If any errors occur, callback(err) will be called.
-  // (Based roughly on the approach detailed in http://www.sqlite.org/faq.html, question 11)
   NoSQLite.prototype.migrate_table = function migrate_table(table, convert_callback, callback) {
-    var db1, obj1, row1, self, statement, statement1, temp_table_name;
-    self = this;
-    row1 = {};
-    obj1 = {};
-    statement = {};
-    statement1 = {};
-    db1 = {};
+    var _a, _b, self, temp_table_name;
+    _a = this;
+    self = _a;
     temp_table_name = ("" + (table) + "_backup");
     sys.debug(("Migrating table: " + (table)));
-    return flow.exec(function() {
-      return self.db.execute("begin transaction", this);
-    }, function() {
-      var this_flow;
-      // create the temp table
-      this_flow = this;
-      return self.find(table, {
+    self.db.execute("begin exclusive transaction", function(_b) {
+      var _c;
+      _b;
+      // 1. create the temp table
+      self.find(table, {
         rowid: 1
-      }, function(err, res) {
-        var create_temp_table_sql;
+      }, function(_c) {
+        var _d, _e, create_temp_table_sql, err, res, row1;
+        _d = arguments;
+        err = _d[0];
+        res = _d[1];
         row1 = res[0];
         delete row1.rowid;
         create_temp_table_sql = sql.create_temp_table(table, row1);
-        return self.db.execute(create_temp_table_sql, this_flow);
-      });
-    }, function() {
-      var dump_sql, return_row_id, select_sql, this_flow;
-      // dump all rows to the temp table
-      this_flow = this;
-      return_row_id = false;
-      select_sql = ("select * from " + (table));
-      dump_sql = ("insert into " + (temp_table_name) + " " + (select_sql) + ";");
-      return self.db.execute(dump_sql, function(err, res) {
-        if ((typeof err !== "undefined" && err !== null)) {
-          return callback(err);
-        }
-        return this_flow();
-      });
-    }, function() {
-      var drop_table_sql, this_flow;
-      //drop and recreate the table
-      this_flow = this;
-      drop_table_sql = ("drop table " + (table));
-      return self.db.execute(drop_table_sql, function(err, res) {
-        var create_table_sql;
-        if ((typeof err !== "undefined" && err !== null)) {
-          return callback(err);
-        }
-        // we start with the first object to convert
-        // so we get the new schema correct
-        obj1 = convert_callback(row1);
-        create_table_sql = sql.create_table(table, obj1).sql;
-        return self.db.execute(create_table_sql, function(err) {
-          (typeof err !== "undefined" && err !== null) ? callback(err) : null;
-          return this_flow();
-        });
-      });
-    }, function() {
-      // commit and close the transaction
-      return self.db.execute("commit", this);
-    }, function() {
-      var this_flow;
-      // Prepare statements to
-      // Convert the rest of the rows and save to new table
-      this_flow = this;
-      return self.db.prepare(("select * from " + (temp_table_name) + " where rowid > 1"), function(err, the_statement) {
-        if (((typeof err !== "undefined" && err !== null))) {
-          return callback(err);
-        }
-        statement = the_statement;
-        // open up another connection to the db
-        db1 = new sqlite.Database();
-        return db1.open(self.db_file, function() {
-          db1.execute("begin transaction");
-          return db1.prepare(sql.insert(table, obj1).name_placeholder, function(err, the_statement) {
-            if (((typeof err !== "undefined" && err !== null))) {
-              return callback(err);
-            }
-            statement1 = the_statement;
-            return this_flow();
-          });
-        });
-      });
-    }, function() {
-      var migrate_row, this_flow;
-      // Step through each row of the temp table
-      // , call the convert_callback
-      // , and then in another sqlite connection insert the row
-      // into the new table.
-      //  This way all rows are not read into memory
-      this_flow = this;
-      migrate_row = function migrate_row() {
-        return statement.step(function(err, row) {
-          var converted_obj;
-          if (!(typeof row !== "undefined" && row !== null)) {
-            return this_flow();
-          }
-          converted_obj = convert_callback(row);
-          statement1.reset();
-          self.bind_obj(statement1, converted_obj);
-          // step once to do the insert
-          return statement1.step(function(err) {
+        self.db.execute(create_temp_table_sql, function(_e) {
+          var _f, dump_sql, return_row_id, select_sql;
+          _e;
+          // 2. dump all rows to the temp table
+          return_row_id = false;
+          select_sql = ("select * from " + (table));
+          dump_sql = ("insert into " + (temp_table_name) + " " + (select_sql) + ";");
+          self.db.execute(dump_sql, function(_f) {
+            var _g, _h, drop_table_sql;
+            _g = arguments;
+            err = _g[0];
+            res = _g[1];
             if ((typeof err !== "undefined" && err !== null)) {
               return callback(err);
             }
-            return migrate_row();
-          });
-        });
-      };
-      return migrate_row();
-    }, function() {
-      // clean up
-      return db1.execute("commit", function() {
-        return statement.finalize(function() {
-          return statement1.finalize(function() {
-            return db1.close(function() {
-              return this;
+            // 3. drop and recreate the table
+            drop_table_sql = ("drop table " + (table));
+            self.db.execute(drop_table_sql, function(_h) {
+              var _i, _j, create_table_sql, obj1;
+              _i = arguments;
+              err = _i[0];
+              res = _i[1];
+              if ((typeof err !== "undefined" && err !== null)) {
+                return callback(err);
+              }
+              // we use the first object to convert
+              // so we get the new schema correct
+              obj1 = convert_callback(row1);
+              create_table_sql = sql.create_table(table, obj1).sql;
+              self.db.execute(create_table_sql, function(_j) {
+                var _k;
+                err = _j;
+                if ((typeof err !== "undefined" && err !== null)) {
+                  return callback(err);
+                }
+                // commit and close the transaction
+                self.db.execute("commit", function(_k) {
+                  var _l;
+                  _k;
+                  // 4. Prepare statements to
+                  // convert the rest of the rows and save to new table
+                  self.db.prepare(("select * from " + (temp_table_name) + " where rowid >= 1"), function(_l) {
+                    var _m, _n, db1, statement;
+                    _m = arguments;
+                    err = _m[0];
+                    statement = _m[1];
+                    if ((typeof err !== "undefined" && err !== null)) {
+                      return callback(err);
+                    }
+                    // open up another connection to the db
+                    db1 = new sqlite.Database();
+                    db1.open(self.db_file, function(_n) {
+                      var _o;
+                      _n;
+                      db1.execute("begin exclusive transaction");
+                      db1.prepare(sql.insert(table, obj1).name_placeholder, function(_o) {
+                        var _p, cleanup_and_callback, migrate_rows, statement1;
+                        _p = arguments;
+                        err = _p[0];
+                        statement1 = _p[1];
+                        if ((typeof err !== "undefined" && err !== null)) {
+                          return callback(err);
+                        }
+                        // 5. Step through each row of the temp table
+                        // , call the convert_callback
+                        // , and then in another sqlite connection insert the row
+                        // into the new table.
+                        //  This way all rows are not read into memory
+                        migrate_rows = function migrate_rows() {
+                          var _q;
+                          statement.step(function(_q) {
+                            var _r, _s, converted_obj, row;
+                            _r = arguments;
+                            err = _r[0];
+                            row = _r[1];
+                            if (!(typeof row !== "undefined" && row !== null)) {
+                              return cleanup_and_callback();
+                            }
+                            try {
+                              converted_obj = convert_callback(row);
+                            } catch (error) {
+                              return callback(err);
+                            }
+                            statement1.reset();
+                            self.bind_obj(statement1, converted_obj);
+                            // step once to do the insert
+                            statement1.step(function(_s) {
+                              err = _s;
+                              if ((typeof err !== "undefined" && err !== null)) {
+                                return callback(err);
+                              }
+                              return migrate_rows();
+                              return undefined;
+                            });
+                          });
+                        };
+                        migrate_rows();
+                        cleanup_and_callback = function cleanup_and_callback() {
+                          var _q;
+                          // 6.clean up
+                          db1.execute("commit", function(_q) {
+                            var _r;
+                            _q;
+                            statement.finalize(function(_r) {
+                              var _s;
+                              _r;
+                              statement1.finalize(function(_s) {
+                                var _t;
+                                _s;
+                                db1.close(function(_t) {
+                                  var _u;
+                                  _t;
+                                  // 7. drop the temp table and alert the callback
+                                  self.db.execute(("drop table " + (temp_table_name)), function(_u) {
+                                    var _v;
+                                    _v = arguments;
+                                    err = _v[0];
+                                    res = _v[1];
+                                    if ((typeof err !== "undefined" && err !== null)) {
+                                      return callback(err);
+                                    }
+                                    if ((typeof callback !== "undefined" && callback !== null)) {
+                                      return callback(null, "success");
+                                    }
+                                    return undefined;
+                                  });
+                                });
+                              });
+                            });
+                          });
+                        };
+                        return cleanup_and_callback;
+                        return undefined;
+                      });
+                    });
+                  });
+                });
+              });
             });
           });
         });
-      });
-    }, function() {
-      // drop the temp table and alert the callback
-      return self.db.execute(("drop table " + (temp_table_name)), function(err, res) {
-        if ((typeof err !== "undefined" && err !== null)) {
-          return callback(err);
-        }
-        if ((typeof callback !== "undefined" && callback !== null)) {
-          return callback(null, "success");
-        }
       });
     });
   };
   // Syncing code
   // This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
   // It works for all 3.  It's magic.
-  NoSQLite.prototype.pull_objects = function pull_objects(head, callback) {
+  // fetches all the objects after a certain commit hash
+  NoSQLite.prototype.objects_since_commit = function objects_since_commit(commit_hash, callback) {
     var self;
     self = this;
-    return self.db.execute("select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [head], function(err, res) {
+    return self.db.execute("select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [commit_hash], function(err, res) {
       if ((typeof err !== "undefined" && err !== null)) {
         return callback(err);
       }
       return callback(null, res);
+      //
     });
   };
   // Web API
