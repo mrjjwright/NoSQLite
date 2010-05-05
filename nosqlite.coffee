@@ -176,7 +176,7 @@ class NoSQLite
 				# prepare the statement
 				self.prepare_statement(table, objs[0], this)
 			(err, statement1) ->
-				if err? then throw err
+				if err? then return callback(err)
 				statement: statement1
 				# iterate through and save each object
 				this_flow: this
@@ -188,7 +188,9 @@ class NoSQLite
 						statement.step ->
 							this_serial()
 					(error, res) ->
-						if error? then throw error
+						if error?
+							sys.debug("Throwing error inside save")
+							throw error
 					this_flow
 				)
 			->
@@ -466,6 +468,7 @@ class NoSQLite
 		[err, res]: defer @db.execute """select count(*) from nsl_commit where rowid >= 
 				(select rowid from nsl_commit where parent = :head)""", [commit_hash]
 		if err? then return callback(err)
+		if count is 0 then callback(null, [])
 		
 		# if there is a reasonable number then simply loop through and pull the objects
 		# from each table
@@ -501,9 +504,9 @@ class NoSQLite
 		self: this
 		# pull the remote
 		[err, res]: defer self.find("nsl_remote", {name: remote_name})
-		remote: res[0]
+		remote: res[0] if res?
 		url: "/?method=fetch"
-		if remote.head? then url += "&remote_head=${remote.head}"
+		if remote? and remote.head? then url += "&remote_head=${remote.head}"
 		#create an http client to the url of the remote
 		client: http.createClient(remote.port, remote.host)
 		request: client.request('GET', url, {})
@@ -518,15 +521,19 @@ class NoSQLite
 			body += data
 		
 		response.addListener "end", ->
-			commits: JSON.parse(body)
+			try
+				commits: JSON.parse(body)
+			catch err
+				throw new Error("Unable to pull messages. Remote NoSQLite instance returned: " + body)
+				
 			sys.debug("Fetched ${commits.length} commits from ${remote.host}:${remote.port}")
 			sys.debug("Verifying...")
 			# TODO: verification step here
+			last_commit: {}
 			process_commits: ->
 				commit: commits.shift()
-				if not commit?
-					return self.db.execute "commit", ->
-						return callback(null, "success")
+				if not commit? then return save_remote()
+				last_commit: commit
 				# first save the objects that make up the commit
 				[err, res]: defer self.save(commit.table_name, commit.objects, true)
 				if err? then return callback(err)
@@ -534,8 +541,19 @@ class NoSQLite
 				[err, res]: defer self.insert_object("nsl_commit", commit)
 				if err? then return callback(err)
 				process_commits()
+			
+			save_remote: ->
+				remote.head: last_commit.hash
+				[err, res]: defer self.insert_object("nsl_remote", remote, true)
+				if err? then return callback(err)
+				return self.db.execute "commit", ->
+					sys.debug("Pull complete")
+					return callback(null, "success")
+			
 			defer self.db.execute "begin exclusive transaction;"
-			process_commits()	
+			process_commits()
+			
+				
 
 	# Web API
 	# --------------------------------------

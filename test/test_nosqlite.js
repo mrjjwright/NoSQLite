@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, peer1, peer2, remove_file, sqlite, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
+  var assert, fs, nosqlite, peer1, peer2, remove_file, sqlite, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -196,7 +196,7 @@
   };
   test_save_bulk = function test_save_bulk() {
     var db, db_file, options;
-    db_file = "./test/test_save_bulk.db";
+    db_file = "./test/peer1.db";
     remove_file(db_file);
     options = {};
     db = nosqlite.connect(db_file, options, function() {
@@ -221,7 +221,7 @@
         }
       };
       logs = [];
-      _a = 1; _b = 200000;
+      _a = 1; _b = 5000;
       for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         logs.push(_.clone(log));
       }
@@ -554,7 +554,7 @@
   peer1 = function peer1() {
     var db, db_file;
     db_file = "./test/peer1.db";
-    remove_file(db_file);
+    //remove_file db_file
     //start the listener
     db = nosqlite.connect(db_file, function() {
       var server;
@@ -582,8 +582,24 @@
     db = nosqlite.connect(db_file, function() {
       return db.add_remote("local1", "5000", "localhost", function(err, res) {
         return db.pull("local1", function(err, res) {
-          return sys.debug(err);
+          if ((typeof err !== "undefined" && err !== null)) {
+            throw err;
+          }
+          return assert.equal(res, "success", "should pull all new commits from remote source");
         });
+      });
+    });
+    return db;
+  };
+  test_pull_again = function test_pull_again() {
+    var db, db_file;
+    db_file = "./test/peer2.db";
+    db = nosqlite.connect(db_file, function() {
+      return db.pull("local1", function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        return assert.equal(res, "success", "should pull all new commits from remote source");
       });
     });
     return db;
@@ -601,9 +617,11 @@
     return db;
   };
   //test_add_remote()
+  //test_save_bulk()
   //peer1()
   //peer2()
-  test_pull();
+  //test_pull()
+  test_pull_again();
   //test_find()
   //test_find_or_save()
   //test_save()
@@ -612,6 +630,5 @@
   //test_objects_since_commit()
   //test_save_multiple()
   //test_migration()
-  //test_save_bulk()
   //test_save_web()
 })();

@@ -170,7 +170,7 @@ test_save_multiple: ->
 
 	
 test_save_bulk: ->
-	db_file: "./test/test_save_bulk.db"
+	db_file: "./test/peer1.db"
 	remove_file(db_file)
 	options: {}
 	
@@ -193,7 +193,7 @@ test_save_bulk: ->
 		}
 	
 		logs: []
-		for i in [1..200000]
+		for i in [1..5000]
 			logs.push(_.clone(log))
 	
 		db.save("log", logs, false, (err, res) ->
@@ -478,7 +478,7 @@ test_migration: ->
 
 peer1: ->
 	db_file: "./test/peer1.db"
-	remove_file db_file
+	#remove_file db_file
 	#start the listener
 	db: nosqlite.connect db_file, ->
 		server: db.listen(5000)
@@ -496,7 +496,15 @@ test_pull: ->
 	db: nosqlite.connect db_file, ->
 		db.add_remote "local1", "5000", "localhost", (err, res) ->
 			db.pull "local1", (err, res) ->
-				sys.debug(err)
+				throw err if err?
+				assert.equal(res, "success", "should pull all new commits from remote source")
+
+test_pull_again: ->
+	db_file: "./test/peer2.db"
+	db: nosqlite.connect db_file, ->
+		db.pull "local1", (err, res) ->
+			throw err if err?
+			assert.equal(res, "success", "should pull all new commits from remote source")
 	
 test_add_remote: ->
 	db_file: "./test/peer2.db"
@@ -505,11 +513,12 @@ test_add_remote: ->
 			if err? then throw err
 		
 #test_add_remote()
+#test_save_bulk()
 		
 #peer1()
 #peer2()
-
-test_pull()
+#test_pull()
+test_pull_again()
 #test_find()
 #test_find_or_save()
 #test_save()
@@ -518,5 +527,4 @@ test_pull()
 #test_objects_since_commit()
 #test_save_multiple()
 #test_migration()
-#test_save_bulk()
 #test_save_web()

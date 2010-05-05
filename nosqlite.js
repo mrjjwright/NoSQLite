@@ -197,7 +197,7 @@
     }, function(err, statement1) {
       var this_flow;
       if ((typeof err !== "undefined" && err !== null)) {
-        throw err;
+        return callback(err);
       }
       statement = statement1;
       // iterate through and save each object
@@ -212,6 +212,7 @@
         });
       }, function(error, res) {
         if ((typeof error !== "undefined" && error !== null)) {
+          sys.debug("Throwing error inside save");
           throw error;
         }
       }, this_flow);
@@ -675,6 +676,7 @@
       if ((typeof err !== "undefined" && err !== null)) {
         return callback(err);
       }
+      count === 0 ? callback(null, []) : null;
       // if there is a reasonable number then simply loop through and pull the objects
       // from each table
       count = res[0]["count(*)"];
@@ -759,9 +761,11 @@
       _c = arguments;
       err = _c[0];
       res = _c[1];
-      remote = res[0];
+      if ((typeof res !== "undefined" && res !== null)) {
+        remote = res[0];
+      }
       url = "/?method=fetch";
-      (typeof (_d = remote.head) !== "undefined" && _d !== null) ? url += ("&remote_head=" + (remote.head)) : null;
+      (typeof remote !== "undefined" && remote !== null) && (typeof (_d = remote.head) !== "undefined" && _d !== null) ? url += ("&remote_head=" + (remote.head)) : null;
       //create an http client to the url of the remote
       client = http.createClient(remote.port, remote.host);
       request = client.request('GET', url, {});
@@ -776,20 +780,24 @@
           return body += data;
         });
         return response.addListener("end", function() {
-          var _f, commits, process_commits;
-          commits = JSON.parse(body);
+          var _f, commits, last_commit, process_commits, save_remote;
+          try {
+            commits = JSON.parse(body);
+          } catch (err) {
+            throw new Error("Unable to pull messages. Remote NoSQLite instance returned: " + body);
+          }
           sys.debug(("Fetched " + (commits.length) + " commits from " + (remote.host) + ":" + (remote.port)));
           sys.debug("Verifying...");
           // TODO: verification step here
+          last_commit = {};
           process_commits = function process_commits() {
             var _f, commit;
             commit = commits.shift();
             if (!(typeof commit !== "undefined" && commit !== null)) {
-              return self.db.execute("commit", function() {
-                return callback(null, "success");
-                // first save the objects that make up the commit
-              });
+              return save_remote();
             }
+            last_commit = commit;
+            // first save the objects that make up the commit
             self.save(commit.table_name, commit.objects, true, function(_f) {
               var _g, _h;
               _g = arguments;
@@ -809,6 +817,23 @@
                 }
                 return process_commits();
                 return undefined;
+              });
+            });
+          };
+          save_remote = function save_remote() {
+            var _f;
+            remote.head = last_commit.hash;
+            self.insert_object("nsl_remote", remote, true, function(_f) {
+              var _g;
+              _g = arguments;
+              err = _g[0];
+              res = _g[1];
+              if ((typeof err !== "undefined" && err !== null)) {
+                return callback(err);
+              }
+              return self.db.execute("commit", function() {
+                sys.debug("Pull complete");
+                return callback(null, "success");
               });
             });
           };
