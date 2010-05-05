@@ -108,7 +108,7 @@ test_save: ->
 	
 test_save_multiple: ->
 	db_file: "./test/test_save_multiple.db"
-	remove_file(db_file)
+	#remove_file(db_file)
 	
 	db: nosqlite.connect db_file, ->
 		logs: [
@@ -164,7 +164,7 @@ test_save_multiple: ->
 	
 
 		db.save("log", logs, false, (err, res) ->
-			assert.equal(res, "success", "should save multiple obj")
+			assert.equal(res.table_name, "log", "should save multiple obj and return commit object")
 			db.close()
 		)
 
@@ -266,8 +266,78 @@ test_objects_since_commit: ->
 			#assert.equal(commit, "hello", "should store the first commit")
 			# store another commit
 			db.save "log", logs2, (err1, commit2) ->
-				db.objects_since_commit commit.hash, (err, objects) ->
+				db.objects_since_commit "log", commit.hash, (err, objects) ->
 					assert.equal objects.length, 2, "should pull 2 objects object"
+					db.close()
+		)
+
+test_fetch_commits: ->
+
+	db_file: "./test/test_fetch_commits.db"
+	remove_file(db_file)
+
+	db: nosqlite.connect db_file, ->
+		logs: [
+			log: {
+				text: "hello",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			},
+		]
+
+		logs2: [
+			log: {
+				text: "hello",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			},
+			log: {
+				text: "hello2",
+				occurred_at: new Date().getTime(),
+				created_at: new Date().getTime(),
+				updated_at: new Date().getTime(),
+				source: "string1",
+				log_type: "string1",
+				geo_lat: "string1",
+				geo_long: "string1",
+				metric:  5,
+				external_id: 10,
+				level: 5,
+				readable_metric: "5 miles",
+				facts: ["hello", "hello", "hello1"],
+				original: {id: 1, text: "some crazy object"} 
+			}
+		]
+
+		db.save("log",  logs, (err, commit) ->
+			sys.debug(sys.inspect(commit))
+			#assert.equal(commit, "hello", "should store the first commit")
+			# store another commit
+			db.save "log", logs2, (err1, commit2) ->
+				db.fetch_commits commit.hash, (err, objects) ->
+					assert.equal objects.length, 1, "should pull 1 commit"
 					db.close()
 		)
 		
@@ -406,12 +476,47 @@ test_migration: ->
 				if err? then sys.p err
 				assert.equal(res, "success", "should migrate table from one schema to another")
 
+peer1: ->
+	db_file: "./test/peer1.db"
+	remove_file db_file
+	#start the listener
+	db: nosqlite.connect db_file, ->
+		server: db.listen(5000)
+
+peer2: ->
+	db_file: "./test/peer2.db"
+	#remove_file db_file
+	#start the listener
+	db: nosqlite.connect db_file, ->
+		server: db.listen(5001)
+		
+test_pull: ->
+	db_file: "./test/peer2.db"
+	remove_file db_file
+	db: nosqlite.connect db_file, ->
+		db.add_remote "local1", "5000", "localhost", (err, res) ->
+			db.pull "local1", (err, res) ->
+				sys.debug(err)
+	
+test_add_remote: ->
+	db_file: "./test/peer2.db"
+	db: nosqlite.connect db_file, ->
+		db.add_remote "local1", "5000", "localhost", (err, res) ->
+			if err? then throw err
+		
+#test_add_remote()
+		
+#peer1()
+#peer2()
+
+test_pull()
 #test_find()
 #test_find_or_save()
 #test_save()
 #test_update_object()
+#test_fetch_commits()
 #test_objects_since_commit()
 #test_save_multiple()
-test_migration()
+#test_migration()
 #test_save_bulk()
 #test_save_web()

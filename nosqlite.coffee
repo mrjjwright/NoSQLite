@@ -4,6 +4,7 @@ sys: require "sys"
 flow: require "./flow"
 sqlite: require "./sqlite"
 hashlib: require "./hashlib"
+http: require "http"
 
 # NoSQLite - SQLite for Javascript
 # ---------------------------------
@@ -169,12 +170,14 @@ class NoSQLite
 		flow.exec(
 			->
 				# start a transaction if we aren't in one
-				if tx_flag then this()
+				if tx_flag then return this()
 				db.execute "begin exclusive transaction;", this
 			->
 				# prepare the statement
 				self.prepare_statement(table, objs[0], this)
-			(err, statement) ->
+			(err, statement1) ->
+				if err? then throw err
+				statement: statement1
 				# iterate through and save each object
 				this_flow: this
 				flow.serialForEach(objs, 
@@ -189,17 +192,17 @@ class NoSQLite
 					this_flow
 				)
 			->
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				# find the latest head of the db, we will use this for the parent of the commit
 				self.find "nsl_head", {"table_name is": undefined}, this
 			(err, res) ->
 				#find the the table head now
 				db_head: res[0] if res? and res.length is 1
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				self.find "nsl_head", {table_name: table}, this				
 			(err, res) ->
 				# Save a commit object
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				# we ignore errors from the last step since the nsl_head might simply not exist
 				table_head: res[0] if res? and res.length is 1
 				#create and save the commit object
@@ -209,11 +212,11 @@ class NoSQLite
 				commit.created_at: new Date().toISOString()
 				commit.objects_hash: objects_hash 
 				commit.parent: ""
-				commit.parent: db_head.head
+				commit.parent: db_head.head if db_head.head?
 				commit.hash : self.hash_object(commit)
 				self.insert_object("nsl_commit", commit, this)
 			(err, commit) ->
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				this_flow: this
 				# update the heads table with db head (table is empty)
 				db_head.head: commit.hash
@@ -222,12 +225,12 @@ class NoSQLite
 					if err? then throw err
 					self.insert_object("nsl_head", table_head, true, this_flow)
 			(err, res)->
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				if err? then throw err
 				self.db.execute("update log set commit_hash='${commit.hash}' where commit_hash='PENDING'", this)
 			(err, res)->
 				# commit the transaction
-				if tx_flag or not self.options.safe_mode then this()
+				if tx_flag or not self.options.safe_mode then return this()
 				if err? then throw err
 				db.execute "commit;", this
 			->
@@ -241,7 +244,6 @@ class NoSQLite
 	prepare_statement: (table, obj, callback) ->
 		self: this
 		insert_sql = sql.insert(table, obj, false, self.options.core_data_mode).name_placeholder
-		
 		do_work: ->
 			self.db.prepare insert_sql, (err, the_statement) ->
 				if err?
@@ -289,7 +291,8 @@ class NoSQLite
 	compensating_sql: (table, the_obj, the_err) ->
 		err: if the_err? and the_err.message? then the_err.message else the_err
 		@parse_error(err)
-		return compensating_sql: switch @errobj.code
+		return compensating_sql: 
+			switch @errobj.code
 				when NO_SUCH_TABLE then sql.create_table(table, the_obj, @options.core_data_mode).sql
 				when NO_SUCH_COLUMN then sql.add_column(table, @errobj.column, null, @options.core_data_mode).sql
 				else null
@@ -307,8 +310,9 @@ class NoSQLite
 		hash_string: ""
 
 		for obj in obj_arr
+			# this will get set to the real commit has at the end of the transaction
+			obj["commit_hash"]: "PENDING" if not obj["commit_hash"]?
 			# move hash to parent
-			obj["commit_hash"]: "PENDING";
 			obj["parent"]: obj[hash_name] if obj[hash_name]? and obj[hash_name] isnt ""
 			sha1: @hash_object(obj)
 			obj[hash_name]: sha1
@@ -342,8 +346,8 @@ class NoSQLite
 				
 	# closes the underlying SQLite connection
 	close: ->
-		@db.close(->
-		)
+		@db.close ->
+		
 	
 	# Error Handling
 	# ------------------------
@@ -446,14 +450,92 @@ class NoSQLite
 	# This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
 	# It works for all 3.  It's magic.
 	
-	# fetches all the objects after a certain commit hash
-	objects_since_commit: (commit_hash, callback) ->
-		self: this
-		self.db.execute "select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [commit_hash], (err, res) ->
-			if err? then return callback(err)
-			callback(null, res)
-	#
+	# fetches all the objects from a table after supplied commit 
+	fetch_objects: (table, commit_hash, callback) ->
+		[err, res]: defer @db.execute """select * from ${table} where commit_hash in 
+				(select hash from nsl_commit where rowid > 
+				(select rowid from nsl_commit where hash = :head))""", [commit_hash]
+		callback(null, res)
 	
+	#fetches all commits from the db and their objects after supplied commit
+	# If all commits are wanted, supply an empty commit_hash
+	fetch_commits: (commit_hash, callback) ->
+		self: this
+		# get all the latest commits
+		commit_hash: "" if not commit_hash?
+		[err, res]: defer @db.execute """select count(*) from nsl_commit where rowid >= 
+				(select rowid from nsl_commit where parent = :head)""", [commit_hash]
+		if err? then return callback(err)
+		
+		# if there is a reasonable number then simply loop through and pull the objects
+		# from each table
+		count: res[0]["count(*)"]
+		if count < 10000
+			pulled_commits: []
+			# pull the actual commits 
+			[err, commits]: defer self.db.execute """select * from nsl_commit where rowid >=
+			    (select rowid from nsl_commit where parent = :head)""", [commit_hash]
+			if err? then return callback(err)
+			zip_objects: ->
+				commit: commits.shift()
+				if not commit? then return callback(err, pulled_commits) 
+				[err, objects]: defer self.db.execute "select * from ${commit.table_name} where commit_hash = '${commit.hash}'"
+				commit.objects: objects
+				pulled_commits.push(commit)
+				zip_objects()
+			zip_objects()
+		else return callback(new Error("TODO: implement lookup for over 1000 commits"))
+
+	# Updates the remote table with a new remote to connect to
+	add_remote: (remote_name, port, host, callback) ->
+		self: this
+		remote: {name: remote_name, port: port, host: host}
+		self.insert_object "nsl_remote", remote, false, (err, res) ->
+			if err? then return callback(err)
+			callback(null, remote)
+		
+	# Connects to another NoSQLite instance identified by remote over HTTP
+	# and fetches all commits from that DB since the last pull.
+	# Follows the merge strategy setup in options.	
+	pull: (remote_name, callback) ->
+		self: this
+		# pull the remote
+		[err, res]: defer self.find("nsl_remote", {name: remote_name})
+		remote: res[0]
+		url: "/?method=fetch"
+		if remote.head? then url += "&remote_head=${remote.head}"
+		#create an http client to the url of the remote
+		client: http.createClient(remote.port, remote.host)
+		request: client.request('GET', url, {})
+		body: ""
+		request.end()
+		response: defer request.addListener 'response'
+		
+		sys.puts('STATUS: ' + response.statusCode);
+		response.setEncoding('utf8')
+		
+		response.addListener "data", (data) ->
+			body += data
+		
+		response.addListener "end", ->
+			commits: JSON.parse(body)
+			sys.debug("Fetched ${commits.length} commits from ${remote.host}:${remote.port}")
+			sys.debug("Verifying...")
+			# TODO: verification step here
+			process_commits: ->
+				commit: commits.shift()
+				if not commit?
+					return self.db.execute "commit", ->
+						return callback(null, "success")
+				# first save the objects that make up the commit
+				[err, res]: defer self.save(commit.table_name, commit.objects, true)
+				if err? then return callback(err)
+				delete commit.objects
+				[err, res]: defer self.insert_object("nsl_commit", commit)
+				if err? then return callback(err)
+				process_commits()
+			defer self.db.execute "begin exclusive transaction;"
+			process_commits()	
 
 	# Web API
 	# --------------------------------------
@@ -475,6 +557,7 @@ class NoSQLite
 		http: require "http" if not http?
 		self: this	
 		server: http.createServer( (request, response) ->
+			sys.debug("NoSQLite received request")
 			body: ""
 			url: require("url").parse(request.url, true)
 			if not url.query?  or not url.query.method?
@@ -488,36 +571,53 @@ class NoSQLite
 			request.addListener "data", (data) ->
 				body += data
 			request.addListener "end", ->
-				switch url.query.method
-					when "save" 
-						obj: JSON.parse(body)
-						self.save(table, obj, (err, result) ->
-							self.write_res(response, err, result)
-						 )
-					when "find" 
-						predicate: JSON.parse(body)
-						if predicate.records?
-							# The client is sending some records to save along with asking for new records
-							# This is for convenience for clients that want to do a simple sync in one http call
-							records_to_save: predicate.records
-							predicate: predicate.predicate
-							self.save table, records_to_save, (err, result) ->
-								if err? then return self.write_res(response, err)
+				body_obj: {}
+				
+				parse_body: ->
+					try
+						return  JSON.parse(body)
+					catch error
+						self.write_res(response, new Error("Unable to parse HTTP body as JSON.  Make sure it is valid JSON.  Error: " + error.message))
+										
+				try
+					switch url.query.method
+						when "fetch" 
+							remote_head: url.query.remote_head
+							sys.debug("remote_head: " + typeof remote_head) 
+							if not table?
+								self.fetch_commits remote_head, (err, result) ->
+									self.write_res(response, err, result)
+						when "save" 
+							body_obj: parse_body()
+							self.save(table, body_obj, false, (err, result) ->
+								self.write_res(response, err, result)
+							 )
+						when "find" 
+							predicate: JSON.parse(body)
+							if predicate.records?
+								# The client is sending some records to save along with asking for new records
+								# This is for convenience for clients that want to do a simple sync in one http call
+								records_to_save: predicate.records
+								predicate: predicate.predicate
+								self.save table, records_to_save, (err, result) ->
+									if err? then return self.write_res(response, err)
+									self.find table, predicate, (err, result) ->
+										self.write_res(response, err, result)
+							else
 								self.find table, predicate, (err, result) ->
 									self.write_res(response, err, result)
-						else
-							self.find table, predicate, (err, result) ->
-								self.write_res(response, err, result)
 							 
-					when "find_or_save" 
-						args: JSON.parse(body)
-						self.find_or_save(table, args[0], args[1], (err, result) ->
-							self.write_res(response, err, result)
-						 )
-					else
-						response.writeHead(500, {"Content-Type": "text/plain"})
-						response.write("Unrecognized method: ${url.query.method}")
-						response.end();
+						when "find_or_save" 
+							args: JSON.parse(body)
+							self.find_or_save(table, args[0], args[1], (err, result) ->
+								self.write_res(response, err, result)
+							 )
+						else
+							response.writeHead(500, {"Content-Type": "text/plain"})
+							response.write("Unrecognized method: ${url.query.method}")
+							response.end();
+				catch err
+					self.write_res(response, err, null)
 		 )
 		server.listen(port, host)
 		return server	

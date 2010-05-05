@@ -1,5 +1,5 @@
 (function(){
-  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, flow, hashlib, sql, sqlite, sys;
+  var NO_SUCH_COLUMN, NO_SUCH_TABLE, NoSQLite, UNRECOGNIZED_ERROR, flow, hashlib, http, sql, sqlite, sys;
   var __hasProp = Object.prototype.hasOwnProperty;
   require("./underscore");
   sql = require("./sql");
@@ -7,6 +7,7 @@
   flow = require("./flow");
   sqlite = require("./sqlite");
   hashlib = require("./hashlib");
+  http = require("http");
   // NoSQLite - SQLite for Javascript
   // ---------------------------------
   //
@@ -186,13 +187,19 @@
     commit = {};
     return flow.exec(function() {
       // start a transaction if we aren't in one
-      tx_flag ? this() : null;
+      if (tx_flag) {
+        return this();
+      }
       return db.execute("begin exclusive transaction;", this);
     }, function() {
       // prepare the statement
       return self.prepare_statement(table, objs[0], this);
-    }, function(err, statement) {
+    }, function(err, statement1) {
       var this_flow;
+      if ((typeof err !== "undefined" && err !== null)) {
+        throw err;
+      }
+      statement = statement1;
       // iterate through and save each object
       this_flow = this;
       return flow.serialForEach(objs, function(the_obj) {
@@ -209,7 +216,9 @@
         }
       }, this_flow);
     }, function() {
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       // find the latest head of the db, we will use this for the parent of the commit
       return self.find("nsl_head", {
         "table_name is": undefined
@@ -219,13 +228,18 @@
       if ((typeof res !== "undefined" && res !== null) && res.length === 1) {
         db_head = res[0];
       }
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       return self.find("nsl_head", {
         table_name: table
       }, this);
     }, function(err, res) {
+      var _a;
       // Save a commit object
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       // we ignore errors from the last step since the nsl_head might simply not exist
       if ((typeof res !== "undefined" && res !== null) && res.length === 1) {
         table_head = res[0];
@@ -237,12 +251,16 @@
       commit.created_at = new Date().toISOString();
       commit.objects_hash = objects_hash;
       commit.parent = "";
-      commit.parent = db_head.head;
+      if ((typeof (_a = db_head.head) !== "undefined" && _a !== null)) {
+        commit.parent = db_head.head;
+      }
       commit.hash = self.hash_object(commit);
       return self.insert_object("nsl_commit", commit, this);
     }, function(err, commit) {
       var this_flow;
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       this_flow = this;
       // update the heads table with db head (table is empty)
       db_head.head = commit.hash;
@@ -254,14 +272,18 @@
         return self.insert_object("nsl_head", table_head, true, this_flow);
       });
     }, function(err, res) {
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       if ((typeof err !== "undefined" && err !== null)) {
         throw err;
       }
       return self.db.execute(("update log set commit_hash='" + (commit.hash) + "' where commit_hash='PENDING'"), this);
     }, function(err, res) {
       // commit the transaction
-      tx_flag || !self.options.safe_mode ? this() : null;
+      if (tx_flag || !self.options.safe_mode) {
+        return this();
+      }
       if ((typeof err !== "undefined" && err !== null)) {
         throw err;
       }
@@ -370,16 +392,19 @@
   // be returned
   // the hash is stored on the property, hash name
   NoSQLite.prototype.store_special_cols = function store_special_cols(object) {
-    var _a, _b, _c, _d, hash_name, hash_string, obj, obj_arr, sha1;
+    var _a, _b, _c, _d, _e, hash_name, hash_string, obj, obj_arr, sha1;
     hash_name = "hash";
     _.isArray(object) ? (obj_arr = object) : (obj_arr = [object]);
     hash_string = "";
     _b = obj_arr;
     for (_a = 0, _c = _b.length; _a < _c; _a++) {
       obj = _b[_a];
+      // this will get set to the real commit has at the end of the transaction
+      if (!(typeof (_d = obj["commit_hash"]) !== "undefined" && _d !== null)) {
+        obj["commit_hash"] = "PENDING";
+      }
       // move hash to parent
-      obj["commit_hash"] = "PENDING";
-      if ((typeof (_d = obj[hash_name]) !== "undefined" && _d !== null) && obj[hash_name] !== "") {
+      if ((typeof (_e = obj[hash_name]) !== "undefined" && _e !== null) && obj[hash_name] !== "") {
         obj["parent"] = obj[hash_name];
       }
       sha1 = this.hash_object(obj);
@@ -619,16 +644,182 @@
   // Syncing code
   // This group is devoted to plumbing functions that sync 2 tables, I mean refs, I means dbs
   // It works for all 3.  It's magic.
-  // fetches all the objects after a certain commit hash
-  NoSQLite.prototype.objects_since_commit = function objects_since_commit(commit_hash, callback) {
-    var self;
-    self = this;
-    return self.db.execute("select * from log where commit_hash in (select hash from nsl_commit where rowid > (select rowid from nsl_commit where hash = :head))", [commit_hash], function(err, res) {
+  // fetches all the objects from a table after supplied commit
+  NoSQLite.prototype.fetch_objects = function fetch_objects(table, commit_hash, callback) {
+    var _a, _b;
+    _a = this;
+    _a.db.execute(("select * from " + (table) + " where commit_hash in \n(select hash from nsl_commit where rowid > \n(select rowid from nsl_commit where hash = :head))"), [commit_hash], function(_b) {
+      var _c, err, res;
+      _c = arguments;
+      err = _c[0];
+      res = _c[1];
+      return callback(null, res);
+      return undefined;
+    });
+  };
+  //fetches all commits from the db and their objects after supplied commit
+  // If all commits are wanted, supply an empty commit_hash
+  NoSQLite.prototype.fetch_commits = function fetch_commits(commit_hash, callback) {
+    var _a, _b, self;
+    _a = this;
+    self = _a;
+    // get all the latest commits
+    if (!(typeof commit_hash !== "undefined" && commit_hash !== null)) {
+      commit_hash = "";
+    }
+    _a.db.execute("select count(*) from nsl_commit where rowid >= \n(select rowid from nsl_commit where parent = :head)", [commit_hash], function(_b) {
+      var _c, _d, _f, _h, _j, commits, count, err, objects, pulled_commits, res, zip_objects;
+      _c = arguments;
+      err = _c[0];
+      res = _c[1];
       if ((typeof err !== "undefined" && err !== null)) {
         return callback(err);
       }
-      return callback(null, res);
-      //
+      // if there is a reasonable number then simply loop through and pull the objects
+      // from each table
+      count = res[0]["count(*)"];
+      (function(_e) {
+        //new body:
+        _d = count < 10000;
+        //old IfNode:
+        if (_d) {
+          return (function() {
+            //START wrap/terminate
+            pulled_commits = [];
+            // pull the actual commits
+            self.db.execute("select * from nsl_commit where rowid >=\n(select rowid from nsl_commit where parent = :head)", [commit_hash], function(_g) {
+              _h = arguments;
+              err = _h[0];
+              commits = _h[1];
+              if ((typeof err !== "undefined" && err !== null)) {
+                return callback(err);
+              }
+              zip_objects = function zip_objects() {
+                var _i, commit;
+                commit = commits.shift();
+                if (!(typeof commit !== "undefined" && commit !== null)) {
+                  return callback(err, pulled_commits);
+                }
+                self.db.execute(("select * from " + (commit.table_name) + " where commit_hash = '" + (commit.hash) + "'"), function(_i) {
+                  _j = arguments;
+                  err = _j[0];
+                  objects = _j[1];
+                  commit.objects = objects;
+                  pulled_commits.push(commit);
+                  return zip_objects();
+                  return undefined;
+                });
+              };
+                            return _e(zip_objects());;
+                            return _e(undefined);;
+              //END wrap/terminate
+            });
+          })();
+        } else {
+          return (function() {
+            //START wrap/terminate
+            return callback(new Error("TODO: implement lookup for over 1000 commits"));
+            //END wrap/terminate
+          })();
+        }
+      })(function(_f) {
+        _f;
+        return undefined;
+      });
+    });
+  };
+  // Updates the remote table with a new remote to connect to
+  NoSQLite.prototype.add_remote = function add_remote(remote_name, port, host, callback) {
+    var remote, self;
+    self = this;
+    remote = {
+      name: remote_name,
+      port: port,
+      host: host
+    };
+    return self.insert_object("nsl_remote", remote, false, function(err, res) {
+      if ((typeof err !== "undefined" && err !== null)) {
+        return callback(err);
+      }
+      return callback(null, remote);
+    });
+  };
+  // Connects to another NoSQLite instance identified by remote over HTTP
+  // and fetches all commits from that DB since the last pull.
+  // Follows the merge strategy setup in options.
+  NoSQLite.prototype.pull = function pull(remote_name, callback) {
+    var _a, _b, self;
+    _a = this;
+    self = _a;
+    // pull the remote
+    self.find("nsl_remote", {
+      name: remote_name
+    }, function(_b) {
+      var _c, _d, _e, body, client, err, remote, request, res, url;
+      _c = arguments;
+      err = _c[0];
+      res = _c[1];
+      remote = res[0];
+      url = "/?method=fetch";
+      (typeof (_d = remote.head) !== "undefined" && _d !== null) ? url += ("&remote_head=" + (remote.head)) : null;
+      //create an http client to the url of the remote
+      client = http.createClient(remote.port, remote.host);
+      request = client.request('GET', url, {});
+      body = "";
+      request.end();
+      request.addListener('response', function(_e) {
+        var response;
+        response = _e;
+        sys.puts('STATUS: ' + response.statusCode);
+        response.setEncoding('utf8');
+        response.addListener("data", function(data) {
+          return body += data;
+        });
+        return response.addListener("end", function() {
+          var _f, commits, process_commits;
+          commits = JSON.parse(body);
+          sys.debug(("Fetched " + (commits.length) + " commits from " + (remote.host) + ":" + (remote.port)));
+          sys.debug("Verifying...");
+          // TODO: verification step here
+          process_commits = function process_commits() {
+            var _f, commit;
+            commit = commits.shift();
+            if (!(typeof commit !== "undefined" && commit !== null)) {
+              return self.db.execute("commit", function() {
+                return callback(null, "success");
+                // first save the objects that make up the commit
+              });
+            }
+            self.save(commit.table_name, commit.objects, true, function(_f) {
+              var _g, _h;
+              _g = arguments;
+              err = _g[0];
+              res = _g[1];
+              if ((typeof err !== "undefined" && err !== null)) {
+                return callback(err);
+              }
+              delete commit.objects;
+              self.insert_object("nsl_commit", commit, function(_h) {
+                var _i;
+                _i = arguments;
+                err = _i[0];
+                res = _i[1];
+                if ((typeof err !== "undefined" && err !== null)) {
+                  return callback(err);
+                }
+                return process_commits();
+                return undefined;
+              });
+            });
+          };
+          self.db.execute("begin exclusive transaction;", function(_f) {
+            _f;
+            return process_commits();
+            return undefined;
+          });
+        });
+        return undefined;
+      });
     });
   };
   // Web API
@@ -652,7 +843,7 @@
   // If NoSQLite has already started a webserver on that port
   // this method returns silently.
   NoSQLite.prototype.listen = function listen(port, host) {
-    var http, self, server;
+    var self, server;
     if (!(typeof port !== "undefined" && port !== null)) {
       port = 5000;
     }
@@ -662,6 +853,7 @@
     self = this;
     server = http.createServer(function(request, response) {
       var _a, _b, body, table, url;
+      sys.debug("NoSQLite received request");
       body = "";
       url = require("url").parse(request.url, true);
       if (!(typeof (_a = url.query) !== "undefined" && _a !== null) || !(typeof (_b = url.query.method) !== "undefined" && _b !== null)) {
@@ -679,43 +871,63 @@
         return body += data;
       });
       return request.addListener("end", function() {
-        var _c, _d, args, obj, predicate, records_to_save;
-        if ((_c = url.query.method) === "save") {
-          obj = JSON.parse(body);
-          return self.save(table, obj, function(err, result) {
-            return self.write_res(response, err, result);
-          });
-        } else if (_c === "find") {
-          predicate = JSON.parse(body);
-          if ((typeof (_d = predicate.records) !== "undefined" && _d !== null)) {
-            // The client is sending some records to save along with asking for new records
-            // This is for convenience for clients that want to do a simple sync in one http call
-            records_to_save = predicate.records;
-            predicate = predicate.predicate;
-            return self.save(table, records_to_save, function(err, result) {
-              if ((typeof err !== "undefined" && err !== null)) {
-                return self.write_res(response, err);
-              }
+        var _c, _d, args, body_obj, parse_body, predicate, records_to_save, remote_head;
+        body_obj = {};
+        parse_body = function parse_body() {
+          try {
+            return JSON.parse(body);
+          } catch (error) {
+            self.write_res(response, new Error("Unable to parse HTTP body as JSON.  Make sure it is valid JSON.  Error: " + error.message));
+          }
+        };
+        try {
+          if ((_c = url.query.method) === "fetch") {
+            remote_head = url.query.remote_head;
+            sys.debug("remote_head: " + typeof remote_head);
+            if (!(typeof table !== "undefined" && table !== null)) {
+              return self.fetch_commits(remote_head, function(err, result) {
+                return self.write_res(response, err, result);
+              });
+            }
+          } else if (_c === "save") {
+            body_obj = parse_body();
+            return self.save(table, body_obj, false, function(err, result) {
+              return self.write_res(response, err, result);
+            });
+          } else if (_c === "find") {
+            predicate = JSON.parse(body);
+            if ((typeof (_d = predicate.records) !== "undefined" && _d !== null)) {
+              // The client is sending some records to save along with asking for new records
+              // This is for convenience for clients that want to do a simple sync in one http call
+              records_to_save = predicate.records;
+              predicate = predicate.predicate;
+              return self.save(table, records_to_save, function(err, result) {
+                if ((typeof err !== "undefined" && err !== null)) {
+                  return self.write_res(response, err);
+                }
+                return self.find(table, predicate, function(err, result) {
+                  return self.write_res(response, err, result);
+                });
+              });
+            } else {
               return self.find(table, predicate, function(err, result) {
                 return self.write_res(response, err, result);
               });
-            });
-          } else {
-            return self.find(table, predicate, function(err, result) {
+            }
+          } else if (_c === "find_or_save") {
+            args = JSON.parse(body);
+            return self.find_or_save(table, args[0], args[1], function(err, result) {
               return self.write_res(response, err, result);
             });
+          } else {
+            response.writeHead(500, {
+              "Content-Type": "text/plain"
+            });
+            response.write(("Unrecognized method: " + (url.query.method)));
+            return response.end();
           }
-        } else if (_c === "find_or_save") {
-          args = JSON.parse(body);
-          return self.find_or_save(table, args[0], args[1], function(err, result) {
-            return self.write_res(response, err, result);
-          });
-        } else {
-          response.writeHead(500, {
-            "Content-Type": "text/plain"
-          });
-          response.write(("Unrecognized method: " + (url.query.method)));
-          return response.end();
+        } catch (err) {
+          return self.write_res(response, err, null);
         }
       });
     });

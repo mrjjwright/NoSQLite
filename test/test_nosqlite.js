@@ -1,5 +1,5 @@
 (function(){
-  var assert, fs, nosqlite, remove_file, sqlite, sys, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
+  var assert, fs, nosqlite, peer1, peer2, remove_file, sqlite, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   nosqlite = require("../nosqlite");
   sqlite = require("../sqlite");
   sys = require("sys");
@@ -127,7 +127,7 @@
   test_save_multiple = function test_save_multiple() {
     var db, db_file;
     db_file = "./test/test_save_multiple.db";
-    remove_file(db_file);
+    //remove_file(db_file)
     db = nosqlite.connect(db_file, function() {
       var log, logs;
       logs = [
@@ -188,7 +188,7 @@
         })
       ];
       return db.save("log", logs, false, function(err, res) {
-        assert.equal(res, "success", "should save multiple obj");
+        assert.equal(res.table_name, "log", "should save multiple obj and return commit object");
         return db.close();
       });
     });
@@ -303,8 +303,88 @@
         //assert.equal(commit, "hello", "should store the first commit")
         // store another commit
         return db.save("log", logs2, function(err1, commit2) {
-          return db.objects_since_commit(commit.hash, function(err, objects) {
+          return db.objects_since_commit("log", commit.hash, function(err, objects) {
             assert.equal(objects.length, 2, "should pull 2 objects object");
+            return db.close();
+          });
+        });
+      });
+    });
+    return db;
+  };
+  test_fetch_commits = function test_fetch_commits() {
+    var db, db_file;
+    db_file = "./test/test_fetch_commits.db";
+    remove_file(db_file);
+    db = nosqlite.connect(db_file, function() {
+      var log, logs, logs2;
+      logs = [
+        (log = {
+          text: "hello",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        })
+      ];
+      logs2 = [
+        (log = {
+          text: "hello",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        }), (log = {
+          text: "hello2",
+          occurred_at: new Date().getTime(),
+          created_at: new Date().getTime(),
+          updated_at: new Date().getTime(),
+          source: "string1",
+          log_type: "string1",
+          geo_lat: "string1",
+          geo_long: "string1",
+          metric: 5,
+          external_id: 10,
+          level: 5,
+          readable_metric: "5 miles",
+          facts: ["hello", "hello", "hello1"],
+          original: {
+            id: 1,
+            text: "some crazy object"
+          }
+        })
+      ];
+      return db.save("log", logs, function(err, commit) {
+        sys.debug(sys.inspect(commit));
+        //assert.equal(commit, "hello", "should store the first commit")
+        // store another commit
+        return db.save("log", logs2, function(err1, commit2) {
+          return db.fetch_commits(commit.hash, function(err, objects) {
+            assert.equal(objects.length, 1, "should pull 1 commit");
             return db.close();
           });
         });
@@ -471,13 +551,67 @@
     });
     return db;
   };
+  peer1 = function peer1() {
+    var db, db_file;
+    db_file = "./test/peer1.db";
+    remove_file(db_file);
+    //start the listener
+    db = nosqlite.connect(db_file, function() {
+      var server;
+      server = db.listen(5000);
+      return server;
+    });
+    return db;
+  };
+  peer2 = function peer2() {
+    var db, db_file;
+    db_file = "./test/peer2.db";
+    //remove_file db_file
+    //start the listener
+    db = nosqlite.connect(db_file, function() {
+      var server;
+      server = db.listen(5001);
+      return server;
+    });
+    return db;
+  };
+  test_pull = function test_pull() {
+    var db, db_file;
+    db_file = "./test/peer2.db";
+    remove_file(db_file);
+    db = nosqlite.connect(db_file, function() {
+      return db.add_remote("local1", "5000", "localhost", function(err, res) {
+        return db.pull("local1", function(err, res) {
+          return sys.debug(err);
+        });
+      });
+    });
+    return db;
+  };
+  test_add_remote = function test_add_remote() {
+    var db, db_file;
+    db_file = "./test/peer2.db";
+    db = nosqlite.connect(db_file, function() {
+      return db.add_remote("local1", "5000", "localhost", function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+      });
+    });
+    return db;
+  };
+  //test_add_remote()
+  //peer1()
+  //peer2()
+  test_pull();
   //test_find()
   //test_find_or_save()
   //test_save()
   //test_update_object()
+  //test_fetch_commits()
   //test_objects_since_commit()
   //test_save_multiple()
-  test_migration();
+  //test_migration()
   //test_save_bulk()
   //test_save_web()
 })();
