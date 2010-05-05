@@ -550,9 +550,11 @@ class NoSQLite
 					sys.debug("Pull complete")
 					return callback(null, "success")
 			
-			defer self.db.execute "begin exclusive transaction;"
-			process_commits()
-			
+			if commits.length > 0
+				defer self.db.execute "begin exclusive transaction;"
+				process_commits()
+			else
+				sys.debug "Pull complete"
 				
 
 	# Web API

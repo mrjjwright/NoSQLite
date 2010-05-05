@@ -780,7 +780,7 @@
           return body += data;
         });
         return response.addListener("end", function() {
-          var _f, commits, last_commit, process_commits, save_remote;
+          var _f, _h, commits, last_commit, process_commits, save_remote;
           try {
             commits = JSON.parse(body);
           } catch (err) {
@@ -837,9 +837,29 @@
               });
             });
           };
-          self.db.execute("begin exclusive transaction;", function(_f) {
-            _f;
-            return process_commits();
+          (function(_g) {
+            //new body:
+            _f = commits.length > 0;
+            //old IfNode:
+            if (_f) {
+              return (function() {
+                //START wrap/terminate
+                self.db.execute("begin exclusive transaction;", function(_i) {
+                  _i;
+                                    return _g(process_commits());;
+                                    return _g(undefined);;
+                  //END wrap/terminate
+                });
+              })();
+            } else {
+              return (function() {
+                //START wrap/terminate
+                                return _g(sys.debug("Pull complete"));;
+                //END wrap/terminate
+              })();
+            }
+          })(function(_h) {
+            _h;
             return undefined;
           });
         });
