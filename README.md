@@ -1,7 +1,7 @@
 NoSQLite - SQLite for Javascript
 -------------------------------
 
-** I am brainstorming an exciting new direction for NoSQLite in this [gist] (http://gist.github.com/384199).  Your feedback is needed and appreciated.  Warning what is below could become obsolete. **
+** I am brainstorming an exciting new direction for NoSQLite in this [gist](http://gist.github.com/384199).  Your feedback is needed and appreciated.  Warning what is below could become obsolete. **
 
 
 The beauty of SQLite is that it is very flexible.  The beauty of Javascript is that it is very flexible.
