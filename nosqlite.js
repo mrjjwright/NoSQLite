@@ -16,7 +16,6 @@
   // Attempts to store JS objects as intelligently as possible in SQLite.
   NoSQLite = function NoSQLite(db_file, options, the_callback) {
     var callback;
-    sys.debug("creating instance of NoSQLite");
     this.db_file = db_file;
     this.db = new sqlite.Database();
     this.table_descriptions = [];
@@ -774,7 +773,6 @@
       request.addListener('response', function(_e) {
         var response;
         response = _e;
-        sys.puts('STATUS: ' + response.statusCode);
         response.setEncoding('utf8');
         response.addListener("data", function(data) {
           return body += data;
@@ -786,8 +784,7 @@
           } catch (err) {
             throw new Error("Unable to pull messages. Remote NoSQLite instance returned: " + body);
           }
-          sys.debug(("Fetched " + (commits.length) + " commits from " + (remote.host) + ":" + (remote.port)));
-          sys.debug("Verifying...");
+          sys.puts(("Fetched " + (commits.length) + " commits from " + (remote.host) + ":" + (remote.port)));
           // TODO: verification step here
           last_commit = {};
           process_commits = function process_commits() {
@@ -832,7 +829,7 @@
                 return callback(err);
               }
               return self.db.execute("commit", function() {
-                sys.debug("Pull complete");
+                sys.puts("Pull complete");
                 return callback(null, "success");
               });
             });
@@ -854,7 +851,7 @@
             } else {
               return (function() {
                 //START wrap/terminate
-                                return _g(sys.debug("Pull complete"));;
+                                return _g(sys.puts("Pull complete"));;
                 //END wrap/terminate
               })();
             }

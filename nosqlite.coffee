@@ -20,7 +20,6 @@ class NoSQLite
 	# * path to db.
 	# * (optional) If set to `true` will create a core data compatible schema.
 	constructor: (db_file, options, the_callback) ->
-		sys.debug("creating instance of NoSQLite")
 		@db_file = db_file
 		@db: new sqlite.Database()
 		@table_descriptions: []
@@ -514,7 +513,6 @@ class NoSQLite
 		request.end()
 		response: defer request.addListener 'response'
 		
-		sys.puts('STATUS: ' + response.statusCode);
 		response.setEncoding('utf8')
 		
 		response.addListener "data", (data) ->
@@ -526,8 +524,7 @@ class NoSQLite
 			catch err
 				throw new Error("Unable to pull messages. Remote NoSQLite instance returned: " + body)
 				
-			sys.debug("Fetched ${commits.length} commits from ${remote.host}:${remote.port}")
-			sys.debug("Verifying...")
+			sys.puts("Fetched ${commits.length} commits from ${remote.host}:${remote.port}")
 			# TODO: verification step here
 			last_commit: {}
 			process_commits: ->
@@ -547,14 +544,14 @@ class NoSQLite
 				[err, res]: defer self.insert_object("nsl_remote", remote, true)
 				if err? then return callback(err)
 				return self.db.execute "commit", ->
-					sys.debug("Pull complete")
+					sys.puts("Pull complete")
 					return callback(null, "success")
 			
 			if commits.length > 0
 				defer self.db.execute "begin exclusive transaction;"
 				process_commits()
 			else
-				sys.debug "Pull complete"
+				sys.puts "Pull complete"
 				
 
 	# Web API
