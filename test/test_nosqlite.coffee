@@ -1,6 +1,5 @@
-nosqlite: require "../src/nosqlite"
-sqlite: require "sqlite"
 sys: require "sys"
+nosqlite: require("../lib/nosqlite").nosqlite
 fs: require "fs"
 assert: require "assert"
 
@@ -15,7 +14,7 @@ test_find: ->
 	db_file: "./test/test_find.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -46,7 +45,7 @@ test_save_cd: ->
 	remove_file(db_file)
 	options: {}
 	options.core_data_mode: true
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -73,7 +72,7 @@ test_update_object: ->
 	db_file: "./test/test_update_object.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
 			created_at: new Date().getTime(),
@@ -95,7 +94,7 @@ test_save: ->
 	db_file: "./test/test_save.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
 			created_at: new Date().getTime(),
@@ -110,7 +109,7 @@ test_save_multiple: ->
 	db_file: "./test/test_save_multiple.db"
 	#remove_file(db_file)
 	
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		logs: [
 			log: {
 				text: "hello",
@@ -174,7 +173,7 @@ test_save_bulk: ->
 	remove_file(db_file)
 	options: {}
 	
-	db: nosqlite.connect db_file, options, ->
+	db: nosqlite.open db_file, options, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -206,7 +205,7 @@ test_objects_since_commit: ->
 	db_file: "./test/test_objects_since_commit.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		logs: [
 			log: {
 				text: "hello",
@@ -276,7 +275,7 @@ test_fetch_commits: ->
 	db_file: "./test/test_fetch_commits.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		logs: [
 			log: {
 				text: "hello",
@@ -346,7 +345,7 @@ test_find_or_save: ->
 	db_file: "./test/test_find_or_save.db"
 	remove_file(db_file)
 
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		logs: [
 			log: {
 				text: "hello",
@@ -410,7 +409,7 @@ test_save_web: ->
 	remove_file(db_file)
 	
 	#start the listener
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		server: db.listen(5000)
 	
 		log: {
@@ -449,7 +448,7 @@ test_migration: ->
 	remove_file(db_file)
 	
 	#create schema 1
-	db: nosqlite.connect db_file,  ->
+	db: nosqlite.open db_file,  ->
 		log: {
 			text: "hello",
 			occurred_at: new Date(),
@@ -480,20 +479,20 @@ peer1: ->
 	db_file: "./test/peer1.db"
 	#remove_file db_file
 	#start the listener
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		server: db.listen(5000)
 
 peer2: ->
 	db_file: "./test/peer2.db"
 	#remove_file db_file
 	#start the listener
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		server: db.listen(5001)
 		
 test_pull: ->
 	db_file: "./test/peer2.db"
 	remove_file db_file
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		db.add_remote "local1", "5000", "localhost", (err, res) ->
 			db.pull "local1", (err, res) ->
 				throw err if err?
@@ -501,14 +500,14 @@ test_pull: ->
 
 test_pull_again: ->
 	db_file: "./test/peer2.db"
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		db.pull "local1", (err, res) ->
 			throw err if err?
 			assert.equal(res, "success", "should pull all new commits from remote source")
 	
 test_add_remote: ->
 	db_file: "./test/peer2.db"
-	db: nosqlite.connect db_file, ->
+	db: nosqlite.open db_file, ->
 		db.add_remote "local1", "5000", "localhost", (err, res) ->
 			if err? then throw err
 		

@@ -1,8 +1,7 @@
 (function(){
-  var assert, fs, nosqlite, peer1, peer2, remove_file, sqlite, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
-  nosqlite = require("../src/nosqlite");
-  sqlite = require("sqlite");
+  var assert, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
   sys = require("sys");
+  nosqlite = require("../lib/nosqlite").nosqlite;
   fs = require("fs");
   assert = require("assert");
   remove_file = function remove_file(file) {
@@ -16,7 +15,7 @@
     var db, db_file;
     db_file = "./test/test_find.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -55,7 +54,7 @@
     remove_file(db_file);
     options = {};
     options.core_data_mode = true;
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -86,7 +85,7 @@
     var db, db_file;
     db_file = "./test/test_update_object.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -111,7 +110,7 @@
     var db, db_file;
     db_file = "./test/test_save.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log;
       log = {
         text: "hello",
@@ -128,7 +127,7 @@
     var db, db_file;
     db_file = "./test/test_save_multiple.db";
     //remove_file(db_file)
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log, logs;
       logs = [
         (log = {
@@ -199,7 +198,7 @@
     db_file = "./test/peer1.db";
     remove_file(db_file);
     options = {};
-    db = nosqlite.connect(db_file, options, function() {
+    db = nosqlite.open(db_file, options, function() {
       var _a, _b, i, log, logs;
       log = {
         text: "hello",
@@ -236,7 +235,7 @@
     var db, db_file;
     db_file = "./test/test_objects_since_commit.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log, logs, logs2;
       logs = [
         (log = {
@@ -316,7 +315,7 @@
     var db, db_file;
     db_file = "./test/test_fetch_commits.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log, logs, logs2;
       logs = [
         (log = {
@@ -396,7 +395,7 @@
     var db, db_file;
     db_file = "./test/test_find_or_save.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log, logs;
       logs = [
         (log = {
@@ -469,7 +468,7 @@
     db_file = "./test/test_save_web.db";
     remove_file(db_file);
     //start the listener
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var log, server, url;
       server = db.listen(5000);
       log = {
@@ -517,7 +516,7 @@
     db_file = "./test/test_migration.db";
     remove_file(db_file);
     //create schema 1
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var convert_callback, log;
       log = {
         text: "hello",
@@ -556,7 +555,7 @@
     db_file = "./test/peer1.db";
     //remove_file db_file
     //start the listener
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var server;
       server = db.listen(5000);
       return server;
@@ -568,7 +567,7 @@
     db_file = "./test/peer2.db";
     //remove_file db_file
     //start the listener
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       var server;
       server = db.listen(5001);
       return server;
@@ -579,7 +578,7 @@
     var db, db_file;
     db_file = "./test/peer2.db";
     remove_file(db_file);
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       return db.add_remote("local1", "5000", "localhost", function(err, res) {
         return db.pull("local1", function(err, res) {
           if ((typeof err !== "undefined" && err !== null)) {
@@ -594,7 +593,7 @@
   test_pull_again = function test_pull_again() {
     var db, db_file;
     db_file = "./test/peer2.db";
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       return db.pull("local1", function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
@@ -607,7 +606,7 @@
   test_add_remote = function test_add_remote() {
     var db, db_file;
     db_file = "./test/peer2.db";
-    db = nosqlite.connect(db_file, function() {
+    db = nosqlite.open(db_file, function() {
       return db.add_remote("local1", "5000", "localhost", function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
