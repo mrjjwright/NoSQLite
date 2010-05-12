@@ -1,7 +1,7 @@
 (function(){
   var assert, fs, nosqlite, peer1, peer2, remove_file, sqlite, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
-  nosqlite = require("../nosqlite");
-  sqlite = require("../sqlite");
+  nosqlite = require("../src/nosqlite");
+  sqlite = require("sqlite");
   sys = require("sys");
   fs = require("fs");
   assert = require("assert");
@@ -621,10 +621,10 @@
   //peer1()
   //peer2()
   //test_pull()
-  test_pull_again();
+  //test_pull_again()
   //test_find()
   //test_find_or_save()
-  //test_save()
+  test_save();
   //test_update_object()
   //test_fetch_commits()
   //test_objects_since_commit()

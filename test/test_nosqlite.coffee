@@ -1,5 +1,5 @@
-nosqlite: require "../nosqlite"
-sqlite: require "../sqlite"
+nosqlite: require "../src/nosqlite"
+sqlite: require "sqlite"
 sys: require "sys"
 fs: require "fs"
 assert: require "assert"
@@ -518,10 +518,10 @@ test_add_remote: ->
 #peer1()
 #peer2()
 #test_pull()
-test_pull_again()
+#test_pull_again()
 #test_find()
 #test_find_or_save()
-#test_save()
+test_save()
 #test_update_object()
 #test_fetch_commits()
 #test_objects_since_commit()

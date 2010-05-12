@@ -1,6 +1,3 @@
-sys: require 'sys'
-require "./underscore"
-	
 # A simple DSL for creating SQL statements frorm and for JS to SQLLite
 class SQL
 	constructor: (core_data_mode)->
@@ -170,13 +167,13 @@ class SQL
 		catch error
 			return value
 			
-exports.SQL: SQL
-exports.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
-exports.insert: (table, obj, replace, core_data_mode) -> new SQL(core_data_mode).insert(table, obj, replace)
-exports.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
-exports.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
-exports.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
-exports.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
-exports.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
-exports.populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
-
+nosqlite: if not exports? and window? then window.nosqlite else require("./nosqlite").nosqlite
+nosqlite.sql: {}
+nosqlite.sql.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
+nosqlite.sql.insert: (table, obj, replace, core_data_mode) -> new SQL(core_data_mode).insert(table, obj, replace)
+nosqlite.sql.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
+nosqlite.sql.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
+nosqlite.sql.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
+nosqlite.sql.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
+nosqlite.sql.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
+nosqlite.sql.populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
