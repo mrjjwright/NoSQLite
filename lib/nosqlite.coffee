@@ -51,6 +51,7 @@ class NoSQLite
 	open: (name, options, callback) ->
 		@options = _.extend(@options, options) if options?
 		@openDatabase(name, null, null, null, callback)
+		return this
 	
 	# Opens the database 
 	# Name to be the complete path to the db if it makes sense
@@ -58,6 +59,7 @@ class NoSQLite
 	openDatabase: (name, version, displayName, estimatedSize, callback) ->
 		try
 			@db: nsl_sqlite_wrapper.openDatabase(name, version, displayName, estimatedSize, callback)
+			return this
 		catch err
 			handleError(err)
 
