@@ -12,8 +12,22 @@ unsent_statement: {}
 
 # Prepares all the statements
 
+
+# Creates a SHA-1 hash of the object's contents 
+# in the piped export format of SQLite.
+hash_object: (object) ->
+	values: ""
+	i: 0
+	keys_length: Object.keys(object).length - 1
+	for key, value of object
+		values += value 
+		values += "|" if i++ < keys_length
+	return hashlib.sha1(values)
+
+
 # Called at the beginning of a save transaction
 prepare_save_statements: (db, callback) ->
+	self: this
 	self.db.prepare_statement "insert into nsl_obj(oid, uuid, table) values(:oid, :uuid, :table)", (err, statement) ->
 	 	nsl_obj_statement: statement
 		self.db.prepare_statement "insert into plink(pid, cid, is_primary) values(:pid, :cid, :is_primary)", (err, statement) ->
@@ -24,7 +38,7 @@ prepare_save_statements: (db, callback) ->
 					unsent_statement: statement
 					callback()
 										
-execute_save_statements: (db, table, obj, callback)					
+execute_save_statements: (db, table, obj, callback)	->				
 	self.db.execute()
 	
 #pre_insert hooks
@@ -38,12 +52,12 @@ exports.module_init: ()	->
 insert_nsl_obj: (nsl_obj_statement, table, obj, callback) ->
 	# Todo check the uuid policy
 	uuid: hash_obj(obj)
-	nsl_obj: {oid, obj.rowid, table: table, uuid: uuid}
-	execute_statement nsl_obj_statement, nsl_obj, callback)
+	nsl_obj: {oid: obj.rowid, table: table, uuid: uuid}
+	execute_statement nsl_obj_statement, nsl_obj, callback
 
 insert_plink: (plink_statement, obj, callback) ->	
-	if obj.parent?
-		
+	#
+			
 # Updates the remote table with a new remote to connect to
 exports.add_remote: (remote_name, port, host, callback) ->
 	self: this

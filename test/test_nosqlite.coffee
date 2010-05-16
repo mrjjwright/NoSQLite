@@ -86,7 +86,6 @@ test_update_object: ->
 			db.save("log", log, false, (err, res) ->
 				assert.equal(res.length, 1, "should update single obj by adding a new")
 				assert.equal(res[0].parent, object_hash, "parent hash should be old version's hash")
-				db.close()
 			)
 		)
 
@@ -99,10 +98,8 @@ test_save: ->
 			text: "hello",
 			created_at: new Date().getTime(),
 		}
-
-		db.save("log", log, false, (err, res) ->
-			assert.equal(res, "success", "should save single obj")
-			db.close()
+		db.save("log", log, (err, sql_result_set) ->
+			assert.equal(sql_result_set.rowsAffected, 1, "should save single obj")
 		)
 	
 test_save_multiple: ->

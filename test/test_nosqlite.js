@@ -4,14 +4,14 @@
   nosqlite = require("../lib/nosqlite").nosqlite;
   fs = require("fs");
   assert = require("assert");
-  remove_file = function remove_file(file) {
+  remove_file = function(file) {
     try {
       return fs.unlinkSync(file);
     } catch (err) {
       return sys.puts(err);
     }
   };
-  test_find = function test_find() {
+  test_find = function() {
     var db, db_file;
     db_file = "./test/test_find.db";
     remove_file(db_file);
@@ -48,7 +48,7 @@
     });
     return db;
   };
-  test_save_cd = function test_save_cd() {
+  test_save_cd = function() {
     var db, db_file, options;
     db_file = "./test/test_save_cd.db";
     remove_file(db_file);
@@ -81,7 +81,7 @@
     });
     return db;
   };
-  test_update_object = function test_update_object() {
+  test_update_object = function() {
     var db, db_file;
     db_file = "./test/test_update_object.db";
     remove_file(db_file);
@@ -99,14 +99,13 @@
         log.text = "hello1";
         return db.save("log", log, false, function(err, res) {
           assert.equal(res.length, 1, "should update single obj by adding a new");
-          assert.equal(res[0].parent, object_hash, "parent hash should be old version's hash");
-          return db.close();
+          return assert.equal(res[0].parent, object_hash, "parent hash should be old version's hash");
         });
       });
     });
     return db;
   };
-  test_save = function test_save() {
+  test_save = function() {
     var db, db_file;
     db_file = "./test/test_save.db";
     remove_file(db_file);
@@ -116,14 +115,13 @@
         text: "hello",
         created_at: new Date().getTime()
       };
-      return db.save("log", log, false, function(err, res) {
-        assert.equal(res, "success", "should save single obj");
-        return db.close();
+      return db.save("log", log, function(err, sql_result_set) {
+        return assert.equal(sql_result_set.rowsAffected, 1, "should save single obj");
       });
     });
     return db;
   };
-  test_save_multiple = function test_save_multiple() {
+  test_save_multiple = function() {
     var db, db_file;
     db_file = "./test/test_save_multiple.db";
     //remove_file(db_file)
@@ -193,7 +191,7 @@
     });
     return db;
   };
-  test_save_bulk = function test_save_bulk() {
+  test_save_bulk = function() {
     var db, db_file, options;
     db_file = "./test/peer1.db";
     remove_file(db_file);
@@ -231,7 +229,7 @@
     });
     return db;
   };
-  test_objects_since_commit = function test_objects_since_commit() {
+  test_objects_since_commit = function() {
     var db, db_file;
     db_file = "./test/test_objects_since_commit.db";
     remove_file(db_file);
@@ -311,7 +309,7 @@
     });
     return db;
   };
-  test_fetch_commits = function test_fetch_commits() {
+  test_fetch_commits = function() {
     var db, db_file;
     db_file = "./test/test_fetch_commits.db";
     remove_file(db_file);
@@ -391,7 +389,7 @@
     });
     return db;
   };
-  test_find_or_save = function test_find_or_save() {
+  test_find_or_save = function() {
     var db, db_file;
     db_file = "./test/test_find_or_save.db";
     remove_file(db_file);
@@ -463,7 +461,7 @@
     });
     return db;
   };
-  test_save_web = function test_save_web() {
+  test_save_web = function() {
     var db, db_file;
     db_file = "./test/test_save_web.db";
     remove_file(db_file);
@@ -511,7 +509,7 @@
     });
     return db;
   };
-  test_migration = function test_migration() {
+  test_migration = function() {
     var db, db_file;
     db_file = "./test/test_migration.db";
     remove_file(db_file);
@@ -537,7 +535,7 @@
           text: "some crazy object"
         }
       };
-      convert_callback = function convert_callback(old_obj) {
+      convert_callback = function(old_obj) {
         old_obj.occurred_at = "you big dork";
         return old_obj;
       };
@@ -550,7 +548,7 @@
     });
     return db;
   };
-  peer1 = function peer1() {
+  peer1 = function() {
     var db, db_file;
     db_file = "./test/peer1.db";
     //remove_file db_file
@@ -562,7 +560,7 @@
     });
     return db;
   };
-  peer2 = function peer2() {
+  peer2 = function() {
     var db, db_file;
     db_file = "./test/peer2.db";
     //remove_file db_file
@@ -574,7 +572,7 @@
     });
     return db;
   };
-  test_pull = function test_pull() {
+  test_pull = function() {
     var db, db_file;
     db_file = "./test/peer2.db";
     remove_file(db_file);
@@ -590,7 +588,7 @@
     });
     return db;
   };
-  test_pull_again = function test_pull_again() {
+  test_pull_again = function() {
     var db, db_file;
     db_file = "./test/peer2.db";
     db = nosqlite.open(db_file, function() {
@@ -603,7 +601,7 @@
     });
     return db;
   };
-  test_add_remote = function test_add_remote() {
+  test_add_remote = function() {
     var db, db_file;
     db_file = "./test/peer2.db";
     db = nosqlite.open(db_file, function() {

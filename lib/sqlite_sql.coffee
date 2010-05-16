@@ -1,10 +1,10 @@
-# A simple DSL for creating SQL statements frorm and for JS to SQLLite
+# A simple DSL for creating SQL statements to and from JS to SQLLite
 class SQL
 	constructor: (core_data_mode)->
-		@values: []
-		@values_escaped: []
+		@bindings: []
+		@bindings_escaped: []
 		@columns: []
-		@core_data_mode: core_data_mode
+		@core_data_mode: core_data_mode is true
 			
 	select: (table, predicate) ->
 		sql: "select rowid, * from " + @sql_name(table) 
@@ -26,11 +26,11 @@ class SQL
 		for predicate in predicates		
 			for key of predicate 
 				key_sql: @key_to_sql(key)
-				@values_escaped.push(@convert_to_sqlite(predicate[key]))
+				@bindings_escaped.push(@convert_to_sqlite(predicate[key]))
 				ands_escaped.push(key_sql + @convert_to_sqlite(predicate[key]))
 				ands_index_placeholder.push(key_sql + "?")
 				ands_name_placeholder.push(key_sql + ":${key}")
-				@values.push(predicate[key])
+				@bindings.push(predicate[key])
 			
 		@escaped: sql + "(" + ands_escaped.join(" AND ") + ")"
 		@index_placeholder: sql + "(" + ands_index_placeholder.join(" AND ") + ")"
@@ -44,15 +44,15 @@ class SQL
 		question_marks: []
 		names: []
 		for key of obj
-			@values.push(obj[key])
-			@values_escaped.push(@convert_to_sqlite(obj[key]))
+			@bindings.push(obj[key])
+			@bindings_escaped.push(@convert_to_sqlite(obj[key]))
 			@columns.push(@sql_name(key))
 			question_marks.push("?")
 			names.push(":${key}")
 		columns_sep: @columns.join(",")
 		@index_placeholder: sql + "(" + columns_sep + ") values ("  + question_marks.join(",") + ")"
 		@name_placeholder: sql + "(" + columns_sep + ") values ("  + names.join(", ") + ")"
-		@escaped: sql + "(" + columns_sep + ") values (" + @values_escaped.join(",") + ")"
+		@escaped: sql + "(" + columns_sep + ") values (" + @bindings_escaped.join(",") + ")"
 		return this
 	
 	# returns SQLite based sql for creating a table based on an object	
@@ -166,14 +166,15 @@ class SQL
 			return JSON.parse(value)
 		catch error
 			return value
-			
-nosqlite: if not exports? and window? then window.nosqlite else require("./nosqlite").nosqlite
-nosqlite.sql: {}
-nosqlite.sql.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
-nosqlite.sql.insert: (table, obj, replace, core_data_mode) -> new SQL(core_data_mode).insert(table, obj, replace)
-nosqlite.sql.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
-nosqlite.sql.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
-nosqlite.sql.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
-nosqlite.sql.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
-nosqlite.sql.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
-nosqlite.sql.populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
+
+root: if window? then window else exports
+root.sqlite_sql: {}
+root.sqlite_sql.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
+root.sqlite_sql.insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
+root.sqlite_sql.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
+root.sqlite_sql.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
+root.sqlite_sql.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
+root.sqlite_sql.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)
+root.sqlite_sql.convert_from_sqlite: (value, prototype_value, core_data_mode) -> new SQL(core_data_mode).convert_from_sqlite(value, prototype_value)
+root.sqlite_sql.populate_predicate: (predicate, obj, core_data_mode) -> new SQL(core_data_mode).populate_predicate(predicate, obj)
+
