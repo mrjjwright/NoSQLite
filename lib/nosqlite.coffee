@@ -56,72 +56,13 @@ class NoSQLite
 	openDatabase: (name, version, displayName, estimatedSize, callback) ->
 		@db: sqlite_provider.openDatabase name, version, displayName, estimatedSize, ->
 			return callback() if callback?
-
+		return this
+		
+	# the user can execute underlying transaction if they want to
+	transaction: (start, failure, success) ->
+		@db.transaction(start, failure, success)
 
 	## Core Methods #################################
-
-	# Stores an object or objects in SQLite. 
-	# If the table doesn't exist, NoSQLite will create the table for you.
-	#
-	# If the objects already exist in the database they will be updated because
-	# NoSQLite issues an "insert or replace"
-	#
-	# One table is created for the object with the name supplied in param table.
-	# One column is created for each top-level attribute of the object.
-	# All columns are stored with SQLite type affinity "TEXT" except
-	# dates and numeric Javascript types that are stored as "NUMERIC"
-	# * Strings are stored as text
-	# * Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
-	# * Dates are stored as numbers, Unix epochs since 1970
-	# * Booleans are stored as numbers, 1 for true or 0 for false
-	# * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
-	# You can pass in an array of objects as well.	Each row will be inserted
-	#
-	# As always, we'll call you back when everything is ready!
-	save: (table, obj, callback) ->
-		@table: table
-		objs = obj if _.isArray(obj)
-		objs = [obj] if not _.isArray(obj)
-
-		self: this
-		db: @db
-		
-		# An object that describes the current transaction
-		# so that it can be restarted if need be
-		tx: {
-			table: table
-			obj: obj
-			callback: callback
-		}
-
-		#aggegrate_results
-		res: {rowsAffected: 0} 
-		
-		db.transaction(
-			(transaction) ->
-				self.transaction: transaction
-				# queue up sqls for each of the objs
-				for obj in objs
-					tx.current_obj: obj
-					insert_sql: self.sql.insert(table, obj)
-					transaction.executeSQL(
-						insert_sql.index_placeholder,
-						insert_sql.bindings, 
-						(transaction, srs) ->
-							# maybe a post commit-hook
-							res.rowsAffected += srs.rowsAffected
-							res.insertId: srs.insertId
-						(transaction, err) ->
-							# we want the transaction error handler to be called
-							# so we can try to fix the error
-							tx.err: err
-							return false
-					)
-			(transaction, err) ->
-				self.tryToFix(tx)
-			(transaction) ->
-				callback(null, res) if callback?
-		)
 
 	# Finds an object or objects in the SQLite by running a query 
 	# derived from the supplied predicate on the supplied table.  
@@ -239,14 +180,14 @@ class NoSQLite
 		else
 			@db.transaction(
 				(transaction) ->
-					transaction.executeSQL(fix_sql)
+					transaction.executeSql(fix_sql)
 				(transaction, err) ->
 					return tx.callback(err) if tx.callback?
 				(transaction) ->
 					# we fixed the problem, retry the tx
 					self.save(tx.table, tx.obj, tx.callback)
 			)
-			
+		
 	# Parses error into an internal error code		
 	parse_error: (err) ->
 		errobj: {}
@@ -259,6 +200,73 @@ class NoSQLite
 		else
 			errobj.code = @UNRECOGNIZED_ERROR
 		return errobj
+
+	# Stores an object or objects in SQLite. 
+	# If the table doesn't exist, NoSQLite will create the table for you.
+	#
+	# If the objects already exist in the database they will be updated because
+	# NoSQLite issues an "insert or replace"
+	#
+	# One table is created for the object with the name supplied in param table.
+	# One column is created for each top-level attribute of the object.
+	# All columns are stored with SQLite type affinity "TEXT" except
+	# dates and numeric Javascript types that are stored as "NUMERIC"
+	# * Strings are stored as text
+	# * Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
+	# * Dates are stored as numbers, Unix epochs since 1970
+	# * Booleans are stored as numbers, 1 for true or 0 for false
+	# * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
+	# You can pass in an array of objects as well.	Each row will be inserted
+	#
+	# As always, we'll call you back when everything is ready!
+	save: (table, obj, callback) ->
+		@table: table
+		objs = obj if _.isArray(obj)
+		objs = [obj] if not _.isArray(obj)
+
+		self: this
+		db: @db
+		
+		# An object that describes the current transaction
+		# so that it can be restarted if need be
+		tx: {
+			table: table
+			obj: obj
+			callback: callback
+		}
+
+		#aggegrate_results
+		res: {rowsAffected: 0} 
+		
+		db.transaction(
+			(transaction) ->
+				self.transaction: transaction
+				# queue up sqls for each of the objs
+				for obj in objs
+					tx.current_obj: obj
+					insert_sql: self.sql.insert(table, obj)
+					transaction.executeSql(
+						insert_sql.index_placeholder,
+						insert_sql.bindings, 
+						(transaction, srs) ->
+							# maybe a post commit-hook
+							res.rowsAffected += srs.rowsAffected
+							res.insertId: srs.insertId
+						(transaction, err) ->
+							# we want the transaction error handler to be called
+							# so we can try to fix the error
+							tx.err: err
+							return false
+					)
+			(transaction, err) ->
+				self.tryToFix(tx)
+			(transaction) ->
+				# oddly browsers, don't call the method above
+				# when an error occurs
+				if tx.err? then self.tryToFix(tx)
+				if callback? then callback()
+		)
+
 
 		
 String.prototype.trim: ->

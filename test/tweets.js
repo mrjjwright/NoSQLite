@@ -8,23 +8,23 @@ var html5demoTweets = (function (user, elm, status) {
   function initDb() {
     status.innerHTML = 'initialising database';
     try {
-      if (window.openDatabase) {
+      if (nosqlite) {
         db = nosqlite.openDatabase("html5demos", "1.0", "HTML 5 Database API example", 200000);
-        if (db) {
-          db.transaction(function(tx) {
-            tx.executeSql("CREATE TABLE IF NOT EXISTS tweets (id REAL UNIQUE, text TEXT, created_at TEXT, screen_name TEXT, mention BOOLEAN)", [], function (tx, result) { 
-              clear();
-              html5demoTweets.timeline();
-            });
-          });
-        } else {
-          status.innerHTML = 'error occurred trying to open DB';
-        }
+          if (db) {
+                db.save("hello", {dork: "hi"}, function (err, res) {
+                  console.debug(res);
+                  clear();
+                  html5demoTweets.timeline();
+                });
+          } else {
+            status.innerHTML = 'error occurred trying to open DB';
+          }
       } else {
         status.innerHTML = 'Web Databases not supported';
       }
     } catch (e) {
-      status.innerHTML = 'error occurred during DB init, Web Database supported?';
+      
+      status.innerHTML = 'error occurred during DB init: ' + e.message;
     }
   }
 
@@ -57,7 +57,7 @@ var html5demoTweets = (function (user, elm, status) {
         script.src = url;
         script.id = "twitterJSON";
         document.body.appendChild(script);
-      }, function (tx) {
+      }, function (tx, err) {
         status.innerHTML = 'error occurred, please reset DB';
       });
     });
@@ -134,7 +134,7 @@ var html5demoTweets = (function (user, elm, status) {
     loadTweets: function (tweets) {
       var search = false;
       
-      document.body.removeChild(document.getElementById('twitterJSON'));
+      //document.body.removeChild(document.getElementById('twitterJSON'));
       
       if (typeof tweets == 'string') {
         // error occurred
@@ -149,7 +149,6 @@ var html5demoTweets = (function (user, elm, status) {
       if (tweets.length) {
         status.innerHTML = tweets.length + ' new tweets loaded';
 
-        db.transaction(function (tx) {
           var i;
           for (i = 0; i < tweets.length; i++) {
             if (search) {
@@ -157,11 +156,15 @@ var html5demoTweets = (function (user, elm, status) {
             } else {
               tweets[i].screen_name = tweets[i].user.screen_name;
             }
-            tx.executeSql('INSERT INTO tweets (id, text, created_at, screen_name, mention) values (?, ?, ?, ?, ?)', [tweets[i].id, tweets[i].text, tweets[i].created_at, tweets[i].screen_name, search]);
+            tweets.search = search;
           }
-
-          show(tweets);
-        });
+          db.save("tweets", tweets, function (err, res) {
+            if (err) status.innerHTML = "Error: " + err.message;
+            else {
+              show(tweets);
+            }
+          });
+          
       }
     }
   };

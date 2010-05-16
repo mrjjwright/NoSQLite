@@ -6,4 +6,3 @@ javascripts:
     - vendor/*.js
     - lib/sqlite_sql.js
     - lib/nosqlite.js
-    - lib/nsl_core.js

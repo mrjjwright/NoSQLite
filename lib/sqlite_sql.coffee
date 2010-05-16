@@ -63,7 +63,6 @@ class SQL
 	# JS Date -> SQLite NUMERIC (can use Unix epoch)
 	# all others use TEXT, when reading them in we try diff
 	create_table: (table, obj) ->
-		sys: require "sys"
 		@sql: "create table " + @sql_name(table)
 		@columns = []
 		
