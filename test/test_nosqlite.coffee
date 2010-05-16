@@ -166,11 +166,11 @@ test_save_multiple: ->
 
 	
 test_save_bulk: ->
-	db_file: "./test/peer1.db"
+	db_file: "./test/save_bulk.db"
 	remove_file(db_file)
 	options: {}
 	
-	db: nosqlite.open db_file, options, ->
+	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -189,12 +189,11 @@ test_save_bulk: ->
 		}
 	
 		logs: []
-		for i in [1..5000]
+		for i in [1..200000]
 			logs.push(_.clone(log))
 	
-		db.save("log", logs, false, (err, res) ->
-			assert.equal(res, "success", "should save 250000 log messages quickly")
-			db.close()
+		db.save("log", logs, (err, res) ->
+			assert.equal(res.rowsAffected, 200000, "should save 250000 log messages quickly")
 		)
 		
 test_objects_since_commit: ->
@@ -509,15 +508,14 @@ test_add_remote: ->
 			if err? then throw err
 		
 #test_add_remote()
-#test_save_bulk()
-		
+test_save_bulk()
 #peer1()
 #peer2()
 #test_pull()
 #test_pull_again()
 #test_find()
 #test_find_or_save()
-test_save()
+#test_save()
 #test_update_object()
 #test_fetch_commits()
 #test_objects_since_commit()

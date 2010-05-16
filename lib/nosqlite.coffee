@@ -46,7 +46,7 @@ class NoSQLite
 	# callback: (optional) a callback method to use if the call succeeded
 	open: (name, options, callback) ->
 		callback: if _.isFunction(options) then options
-		@options = _.extend(@options, options) if options?
+		@options = _.extend(@options, options) if options? and callback?
 		@openDatabase(name, null, null, null, callback)
 		return this
 	
@@ -231,7 +231,7 @@ class NoSQLite
 		errobj: @parse_error(err)
 		fix_sql: 
 			switch errobj.code
-				when @NO_SUCH_TABLE then @sql.create_table(tx.table, tx.obj).sql
+				when @NO_SUCH_TABLE then @sql.create_table(tx.table, tx.current_obj).sql
 				when @NO_SUCH_COLUMN then @sql.add_column(tx.table, errobj.column).sql
 				else null
 		if not fix_sql?

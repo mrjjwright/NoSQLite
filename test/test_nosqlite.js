@@ -193,10 +193,10 @@
   };
   test_save_bulk = function() {
     var db, db_file, options;
-    db_file = "./test/peer1.db";
+    db_file = "./test/save_bulk.db";
     remove_file(db_file);
     options = {};
-    db = nosqlite.open(db_file, options, function() {
+    db = nosqlite.open(db_file, function() {
       var _a, _b, i, log, logs;
       log = {
         text: "hello",
@@ -218,13 +218,12 @@
         }
       };
       logs = [];
-      _a = 1; _b = 5000;
+      _a = 1; _b = 200000;
       for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         logs.push(_.clone(log));
       }
-      return db.save("log", logs, false, function(err, res) {
-        assert.equal(res, "success", "should save 250000 log messages quickly");
-        return db.close();
+      return db.save("log", logs, function(err, res) {
+        return assert.equal(res.rowsAffected, 200000, "should save 250000 log messages quickly");
       });
     });
     return db;
@@ -614,14 +613,14 @@
     return db;
   };
   //test_add_remote()
-  //test_save_bulk()
+  test_save_bulk();
   //peer1()
   //peer2()
   //test_pull()
   //test_pull_again()
   //test_find()
   //test_find_or_save()
-  test_save();
+  //test_save()
   //test_update_object()
   //test_fetch_commits()
   //test_objects_since_commit()

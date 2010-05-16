@@ -26,11 +26,10 @@ class SQL
 		for predicate in predicates		
 			for key of predicate 
 				key_sql: @key_to_sql(key)
-				@bindings_escaped.push(@convert_to_sqlite(predicate[key]))
 				ands_escaped.push(key_sql + @convert_to_sqlite(predicate[key]))
 				ands_index_placeholder.push(key_sql + "?")
 				ands_name_placeholder.push(key_sql + ":${key}")
-				@bindings.push(predicate[key])
+				@bindings.push(@convert_to_sqlite(predicate[key]))
 			
 		@escaped: sql + "(" + ands_escaped.join(" AND ") + ")"
 		@index_placeholder: sql + "(" + ands_index_placeholder.join(" AND ") + ")"
@@ -44,8 +43,7 @@ class SQL
 		question_marks: []
 		names: []
 		for key of obj
-			@bindings.push(obj[key])
-			@bindings_escaped.push(@convert_to_sqlite(obj[key]))
+			@bindings.push(@convert_to_sqlite(obj[key]))
 			@columns.push(@sql_name(key))
 			question_marks.push("?")
 			names.push(":${key}")
@@ -65,6 +63,7 @@ class SQL
 	# JS Date -> SQLite NUMERIC (can use Unix epoch)
 	# all others use TEXT, when reading them in we try diff
 	create_table: (table, obj) ->
+		sys: require "sys"
 		@sql: "create table " + @sql_name(table)
 		@columns = []
 		
