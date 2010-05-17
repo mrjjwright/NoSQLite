@@ -264,7 +264,7 @@ class NoSQLite
 				# oddly browsers, don't call the method above
 				# when an error occurs
 				if tx.err? then self.tryToFix(tx)
-				if callback? then callback()
+				if callback? then callback(null, res)
 		)
 
 
