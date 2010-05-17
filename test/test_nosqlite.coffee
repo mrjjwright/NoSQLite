@@ -32,13 +32,12 @@ test_find: ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 
-		db.save("log", log,  (res) ->
-			db.find("log", {text: "hello"}, (err, result) ->
-				db.close(->
-					assert.equal(result.text, "hello", "should find single object")
-				)
-			)
-		)
+		db.save "log", log,  (res) ->
+			db.find "log", {text: "hello"}, (err, result) ->
+				sys.debug(sys.inspect(result[0]))
+				assert.equal(result[0].text, "hello", "should find single object")
+				assert.equal(result[0].facts[2], "hello1", "should recreate arrays")
+				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"
@@ -507,13 +506,13 @@ test_add_remote: ->
 		db.add_remote "local1", "5000", "localhost", (err, res) ->
 			if err? then throw err
 		
-#test_add_remote()
-test_save_bulk()
-#peer1()
-#peer2()
-#test_pull()
-#test_pull_again()
-#test_find()
+# test_add_remote()
+# test_save_bulk()
+# peer1()
+# peer2()
+# test_pull()
+# test_pull_again()
+test_find()
 #test_find_or_save()
 #test_save()
 #test_update_object()

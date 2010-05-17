@@ -40,9 +40,10 @@
         return db.find("log", {
           text: "hello"
         }, function(err, result) {
-          return db.close(function() {
-            return assert.equal(result.text, "hello", "should find single object");
-          });
+          sys.debug(sys.inspect(result[0]));
+          assert.equal(result[0].text, "hello", "should find single object");
+          assert.equal(result[0].facts[2], "hello1", "should recreate arrays");
+          return assert.equal(result[0].original.id, 1, "should recreate complex Objects");
         });
       });
     });
@@ -612,13 +613,13 @@
     });
     return db;
   };
-  //test_add_remote()
-  test_save_bulk();
-  //peer1()
-  //peer2()
-  //test_pull()
-  //test_pull_again()
-  //test_find()
+  // test_add_remote()
+  // test_save_bulk()
+  // peer1()
+  // peer2()
+  // test_pull()
+  // test_pull_again()
+  test_find();
   //test_find_or_save()
   //test_save()
   //test_update_object()

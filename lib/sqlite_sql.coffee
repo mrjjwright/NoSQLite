@@ -150,12 +150,9 @@ class SQL
 		# sqlite requires strings to be enclosed in single ticks and single ticks within
 		# the string to be escaped with double single ticks
 		# see http://www.sqlite.org/lang_expr.html
-		if _.isNumber(value) is true then return value
+		if _.isNumber(value) is true or _.isString(value) is true then return value
 		#if _.isDate(value) is true then return value.toString()
-		if _.isString(value) is true
-			str_value: value.replace(/\'/g, "''")
-			return "'" + str_value + "'"
-		return "'" + JSON.stringify(value).replace("'", "''") + "'"
+		return "json: " + JSON.stringify(value)
 
 	convert_from_sqlite: (value, prototype_value) ->
 		return null if _.isString(value) and value is "NULL";
