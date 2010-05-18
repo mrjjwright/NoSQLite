@@ -13,7 +13,6 @@ remove_file: (file) ->
 test_find: ->
 	db_file: "./test/test_find.db"
 	remove_file(db_file)
-
 	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
@@ -34,10 +33,10 @@ test_find: ->
 
 		db.save "log", log,  (res) ->
 			db.find "log", {text: "hello"}, (err, result) ->
-				sys.debug(sys.inspect(result[0]))
 				assert.equal(result[0].text, "hello", "should find single object")
 				assert.equal(result[0].facts[2], "hello1", "should recreate arrays")
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
+				sys.debug("Test simple save and find: passed")
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"

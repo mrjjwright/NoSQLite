@@ -102,14 +102,17 @@ class NoSQLite
 					select.index_placeholder, 
 					select.bindings, 
 					(transaction, srs) ->
-						if self.options.check_for_json
-							for obj in srs.rows
+						res: []
+						for i in [0..srs.rows.length-1]
+							obj: _.clone(srs.rows.item(i))
+							if self.options.check_for_json
 								for key of obj
 									continue unless _.isString(obj[key])
 									if obj[key].startsWith "json: "
 										val: obj[key].split("json: ")[1]
 										obj[key]: JSON.parse(val)
-						callback(null, srs.rows)
+							res.push(obj)
+						callback(null, res)
 					(transaction, err) ->
 						if err? then return callback(err)
 				)

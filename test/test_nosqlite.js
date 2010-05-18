@@ -40,10 +40,10 @@
         return db.find("log", {
           text: "hello"
         }, function(err, result) {
-          sys.debug(sys.inspect(result[0]));
           assert.equal(result[0].text, "hello", "should find single object");
           assert.equal(result[0].facts[2], "hello1", "should recreate arrays");
-          return assert.equal(result[0].original.id, 1, "should recreate complex Objects");
+          assert.equal(result[0].original.id, 1, "should recreate complex Objects");
+          return sys.debug("Test simple save and find: passed");
         });
       });
     });

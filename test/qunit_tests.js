@@ -25,9 +25,9 @@ $(document).ready(function() {
 		db.save("log", log, function (err, res) {
 		  equals(err, null, "Should not throw an error");
 			db.find("log", {text: "hello"}, function (err, result) {
-				equals(result.item(0).text, "hello", "should find single object")
-				equals(result.item(0).facts[2], "hello1", "should recreate arrays")
-				equals(result.item(0).original.id, 1, "should recreate complex Objects")
+				equals(result[0].text, "hello", "should find single object")
+				equals(result[0].facts[2], "hello1", "should recreate arrays")
+				equals(result[0].original.id, 1, "should recreate complex Objects")
         start();
       });
     });
