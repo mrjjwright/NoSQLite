@@ -31,12 +31,31 @@ test_find: ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 
-		db.save "log", log,  (res) ->
-			db.find "log", {text: "hello"}, (err, result) ->
+		db.save {table: "log", obj: log}, save_sync_hook, (err, res) ->
+			throw err if err?
+			db.find "log", {text: "hello"},  (err, result) ->
+				throw err if err?
 				assert.equal(result[0].text, "hello", "should find single object")
 				assert.equal(result[0].facts[2], "hello1", "should recreate arrays")
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
-				sys.debug("Test simple save and find: passed")
+				db.find "nsl_obj", {tbl_name: "log"}, (err, res) ->
+					throw err if err?
+					assert.equal(res[0].tbl_name, "log", "should find aux obj")
+					sys.debug("Test simple save and find: passed")
+
+
+	save_sync_hook: (rowid, obj_desc) ->
+		nsl_obj: {
+			oid: rowid,
+			tbl_name: obj_desc.table
+		}
+		return [
+			{table: "nsl_obj", obj: nsl_obj}, 
+			{ table: "unclustered", obj: {oid: rowid}}, 
+			{table: "unsent", obj: {oid: rowid}}
+			]
+
+
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"
@@ -98,7 +117,7 @@ test_save: ->
 		}
 		db.save("log", log, (err, sql_result_set) ->
 			assert.equal(sql_result_set.rowsAffected, 1, "should save single obj")
-		)
+		)	
 	
 test_save_multiple: ->
 	db_file: "./test/test_save_multiple.db"

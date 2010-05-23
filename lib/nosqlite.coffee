@@ -24,7 +24,7 @@ else if window?
 	nsl_console: console
 	if window.openDatabase?
 		webdb_provider: window
-	else throw Error("Unsupported browser.  Does not support HTML5 Web API.")	
+	else throw Error("Unsupported browser.  Does not support HTML5 Web DB API.")	
 	
 class NoSQLite
 
@@ -40,6 +40,12 @@ class NoSQLite
 			# that start with nsl_json:  
 			check_for_json: true
 		}
+		
+		# setup some of the default filters
+		@filters: []
+		@filters.push(@json_text_to_obj)
+		@saveHooks: []
+		
 		_.extend(@options, options) if options?
 		# used for error handling
 		@NO_SUCH_TABLE: 0
@@ -69,7 +75,12 @@ class NoSQLite
 	# in case the user wants to execute their own transactions
 	transaction: (start, failure, success) ->
 		@db.transaction(start, failure, success)
-
+	
+	# Add save hooks
+	onSave: (hook) ->
+		if hook?
+			@saveHooks.push(hook)
+		
 	## Core Methods #################################
 
 	# Finds an object or objects in the db 
@@ -86,7 +97,7 @@ class NoSQLite
 	# 
 	# If the returned value is a string and starts with "json:"
 	# then NoSQLite assumes it wrote out serialized JSON for a complex object
-	# and will call JSON.parse on the items so your object comes back
+	# and will call JSON.parse on the attribute so your object comes back
 	# the same way you put it in.  You can turn this off by setting
 	# the nosqlite option: nosqlite.options.check_for_json = false
 	#
@@ -104,13 +115,13 @@ class NoSQLite
 					(transaction, srs) ->
 						res: []
 						for i in [0..srs.rows.length-1]
-							obj: _.clone(srs.rows.item(i))
-							if self.options.check_for_json
-								for key of obj
-									continue unless _.isString(obj[key])
-									if obj[key].startsWith "json: "
-										val: obj[key].split("json: ")[1]
-										obj[key]: JSON.parse(val)
+							obj: srs.rows.item(i)
+							# apply any filters to the obj
+							for filter in self.filters
+								try
+									obj: filter(obj)
+								catch err1
+									# ignore errors from filters
 							res.push(obj)
 						callback(null, res)
 					(transaction, err) ->
@@ -136,63 +147,72 @@ class NoSQLite
 	# You can pass in an array of objects as well.	Each row will be inserted
 	#
 	# As always, we'll call you back when everything is ready!
-	save: (table, obj, callback) ->
-		@table: table
-		objs = obj if _.isArray(obj)
-		objs = [obj] if not _.isArray(obj)
+	save: (obj_desc, save_hook, callback) ->
+		obj_descs = obj_desc if _.isArray(obj_desc)
+		obj_descs = [obj_desc] if not _.isArray(obj_desc)
+		if not callback?
+			callback: save_hook
+			save_hook: undefined
 
 		self: this
 		db: @db
 		
-		# An object that describes the current transaction
-		# so that it can be restarted if need be
-		tx: {
-			table: table
-			obj: obj
-			callback: callback
-		}
-
 		#aggegrate_results
 		res: {rowsAffected: 0} 
+		# a counter obj that keeps track of where we are at in proccesing 
+		current_err: undefined
+		current_obj_desc: {}
+		save_args: []
+		save_args.push(obj_desc)
+		save_args.push(save_hook)
+		save_args.push(callback)
 		
 		db.transaction(
 			(transaction) ->
 				self.transaction: transaction
 				# queue up sqls for each of the objs
-				for obj in objs
-					tx.current_obj: obj
-					insert_sql: self.sql.insert(table, obj)
-					transaction.executeSql(
-						insert_sql.index_placeholder,
-						insert_sql.bindings, 
-						(transaction, srs) ->
-							# maybe a post commit-hook
-							res.rowsAffected += srs.rowsAffected
-							res.insertId: srs.insertId
-						(transaction, err) ->
-							# we want the transaction error handler to be called
-							# so we can try to fix the error
-							tx.err: err
-							return false
-					)
+				# We build obj_descs for each obj to insert
+				# Each obj description is a special obj where each key
+				# is the name of a table in which to save the obj
+				# and the value is the obj
+				insert_objs: (obj_descs, hook) ->
+					for obj_desc in obj_descs
+						obj_counter: 0
+						current_obj_desc: obj_desc
+						insert_sql: self.sql.insert(obj_desc.table, obj_desc.obj)
+						transaction.executeSql(
+							insert_sql.index_placeholder,
+							insert_sql.bindings, 
+							(transaction, srs) ->
+								obj_counter += 1
+								res.rowsAffected += srs.rowsAffected
+								res.insertId: srs.insertId
+								# insert any other objects
+								if hook?
+									try
+										# each hook can return one or more obj_desc objects
+										insert_objs(hook(srs.insertId, obj_desc))
+									catch err
+										#
+							(transaction, err) ->
+								# we want the transaction error handler to be called
+								# so we can try to fix the error
+								current_err: err
+								current_obj_desc: obj_descs[obj_counter]
+								return false
+						)
+				insert_objs(obj_descs, save_hook)					
 			(transaction, err) ->
-				self.tryToFix(tx)
+				self.fixSave(err, current_obj_desc, callback, save_args)
 			(transaction) ->
 				# oddly browsers, don't call the method above
 				# when an error occurs
-				if tx.err? then self.tryToFix(tx)
+				if current_err? then self.fixSave(current_err, current_obj_desc, callback, save_args)
 				if callback? then callback(null, res)
 		)
 
 
-	# Helper methods
-	
-	# Error Handling
-	# ------------------------
-
-
-
-	# Tries to fix the current transaction automatically by
+	# Tries to fix the current save automatically by
 	# examing the SQLite error and doing the following:
 	# creating the table if it doesn't exist
 	# adding the column if it doesn't exist
@@ -200,28 +220,48 @@ class NoSQLite
 	# If the error was fixed successfully retries the current
 	# failed transaction.
 	# Else notifies the callback
-	tryToFix: (tx) ->
-		return if not tx? or not tx.err?
+	fixSave: (err, obj_desc, callback, save_args) ->
+		return if not err?
 		self: this
-		err: if tx.err? and tx.err.message? then tx.err.message
+		err: if err? and err.message? then err.message
 		errobj: @parse_error(err)
 		fix_sql: 
 			switch errobj.code
-				when @NO_SUCH_TABLE then @sql.create_table(tx.table, tx.current_obj).sql
-				when @NO_SUCH_COLUMN then @sql.add_column(tx.table, errobj.column).sql
+				when @NO_SUCH_TABLE then @sql.create_table(errobj.table, obj_desc.obj).sql
+				when @NO_SUCH_COLUMN then @sql.add_column(obj_desc.table, errobj.column).sql
 				else null
 		if not fix_sql?
-			return tx.callback(err) if tx.callback?
+			return callback(err) if callback?
 		else
 			@db.transaction(
 				(transaction) ->
 					transaction.executeSql(fix_sql)
 				(transaction, err) ->
-					return tx.callback(err) if tx.callback?
+					return callback(err) if callback?
 				(transaction) ->
 					# we fixed the problem, retry the tx
-					self.save(tx.table, tx.obj, tx.callback)
+					self.save.apply(self, save_args)
 			)
+
+
+	# Built-in filters
+	
+	# go through a key of an object and checks for String
+	# attributes that start with "json: " and calls 
+	# JSON.parse on them
+	json_text_to_obj: (obj) ->
+		for key of obj
+			continue unless _.isString(obj[key])
+			if obj[key].startsWith "json: "
+				val: obj[key].split("json: ")[1]
+				obj[key]: JSON.parse(val)
+		return obj
+	  
+	
+	
+	# Error Handling
+	# ------------------------
+
 
 	# Parses error into an internal error code		
 	parse_error: (err) ->
@@ -247,7 +287,10 @@ if window?
 	window.nosqlite: new NoSQLite()
 else
 	NoSQLite.prototype.sql: (require "./sqlite_sql").sqlite_sql
-	exports.nosqlite: new NoSQLite()
+	nsl_sync: require "./nsl_sync"
+	nosqlite: new NoSQLite()
+	nosqlite.onSave(nsl_sync.save_sync_hook)
+	exports.nosqlite: nosqlite
 	
 # In a browser enviroment, the rest of the NoSQLite functions are 
 # bundled below here in a single JS file

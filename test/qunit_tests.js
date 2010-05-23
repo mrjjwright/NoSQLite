@@ -3,7 +3,7 @@ $(document).ready(function() {
   module("Core functions");
 
   asyncTest("save", function() {
-    ok(nosqlite.openDatabase, "Should respond to html5 webd openDatabase method");
+    ok(nosqlite.openDatabase, "Should respond to html5 web db openDatabase method");
     db = nosqlite.openDatabase("nosqlite_test", 1, "NoSQLite Test", 20000)
     ok(db.transaction, "Should create a db object with a transaction method");
     log =  {
@@ -23,11 +23,11 @@ $(document).ready(function() {
 			original: {id: 1, text: "some crazy object"} 
 		}
 		db.save("log", log, function (err, res) {
-		  equals(err, null, "Should not throw an error");
+		  if (err) throw err;
 			db.find("log", {text: "hello"}, function (err, result) {
 				equals(result[0].text, "hello", "should find single object")
 				equals(result[0].facts[2], "hello1", "should recreate arrays")
-				equals(result[0].original.id, 1, "should recreate complex Objects")
+				equals(result[0].original.id, 1, "should recreate complex objects")
         start();
       });
     });

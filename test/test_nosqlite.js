@@ -12,7 +12,7 @@
     }
   };
   test_find = function() {
-    var db, db_file;
+    var db, db_file, save_sync_hook;
     db_file = "./test/test_find.db";
     remove_file(db_file);
     db = nosqlite.open(db_file, function() {
@@ -36,18 +36,58 @@
           text: "some crazy object"
         }
       };
-      return db.save("log", log, function(res) {
+      return db.save({
+        table: "log",
+        obj: log
+      }, save_sync_hook, function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
         return db.find("log", {
           text: "hello"
         }, function(err, result) {
+          if ((typeof err !== "undefined" && err !== null)) {
+            throw err;
+          }
           assert.equal(result[0].text, "hello", "should find single object");
           assert.equal(result[0].facts[2], "hello1", "should recreate arrays");
           assert.equal(result[0].original.id, 1, "should recreate complex Objects");
-          return sys.debug("Test simple save and find: passed");
+          return db.find("nsl_obj", {
+            tbl_name: "log"
+          }, function(err, res) {
+            if ((typeof err !== "undefined" && err !== null)) {
+              throw err;
+            }
+            assert.equal(res[0].tbl_name, "log", "should find aux obj");
+            return sys.debug("Test simple save and find: passed");
+          });
         });
       });
     });
-    return db;
+    save_sync_hook = function(rowid, obj_desc) {
+      var nsl_obj;
+      nsl_obj = {
+        oid: rowid,
+        tbl_name: obj_desc.table
+      };
+      return [
+        {
+          table: "nsl_obj",
+          obj: nsl_obj
+        }, {
+          table: "unclustered",
+          obj: {
+            oid: rowid
+          }
+        }, {
+          table: "unsent",
+          obj: {
+            oid: rowid
+          }
+        }
+      ];
+    };
+    return save_sync_hook;
   };
   test_save_cd = function() {
     var db, db_file, options;
