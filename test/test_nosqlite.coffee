@@ -13,6 +13,8 @@ remove_file: (file) ->
 test_find: ->
 	db_file: "./test/test_find.db"
 	remove_file(db_file)
+	
+	require "../lib/nsl_sync"
 	db: nosqlite.open db_file, ->
 		log: {
 			text: "hello",
@@ -31,7 +33,7 @@ test_find: ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 
-		db.save {table: "log", obj: log}, save_sync_hook, (err, res) ->
+		db.save {table: "log", obj: log}, null, (err, res) ->
 			throw err if err?
 			db.find "log", {text: "hello"},  (err, result) ->
 				throw err if err?
@@ -42,19 +44,6 @@ test_find: ->
 					throw err if err?
 					assert.equal(res[0].tbl_name, "log", "should find aux obj")
 					sys.debug("Test simple save and find: passed")
-
-
-	save_sync_hook: (rowid, obj_desc) ->
-		nsl_obj: {
-			oid: rowid,
-			tbl_name: obj_desc.table
-		}
-		return [
-			{table: "nsl_obj", obj: nsl_obj}, 
-			{ table: "unclustered", obj: {oid: rowid}}, 
-			{table: "unsent", obj: {oid: rowid}}
-			]
-
 
 
 test_save_cd: ->

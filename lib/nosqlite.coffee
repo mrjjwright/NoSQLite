@@ -35,22 +35,29 @@ class NoSQLite
 	constructor: (options) ->			
 		@options = {
 			core_data_mode: false
-			safe_mode: false
 			# whether to check if String columns are JSON
 			# that start with nsl_json:  
 			check_for_json: true
+			sync_mode: false
 		}
 		
 		# setup some of the default filters
 		@filters: []
 		@filters.push(@json_text_to_obj)
-		@saveHooks: []
+		@pre_save_hooks: []
+		@post_save_hooks: []
 		
 		_.extend(@options, options) if options?
 		# used for error handling
 		@NO_SUCH_TABLE: 0
 		@NO_SUCH_COLUMN: 1
 		@UNRECOGNIZED_ERROR: 99
+		
+		if @options.sync_mode
+			if not window?
+				@sync: new require("./nsl_sync").NSLSync(this)
+			else
+				@sync: new NSLSync(this)
 
 	# Opens a database
 	#
@@ -75,12 +82,7 @@ class NoSQLite
 	# in case the user wants to execute their own transactions
 	transaction: (start, failure, success) ->
 		@db.transaction(start, failure, success)
-	
-	# Add save hooks
-	onSave: (hook) ->
-		if hook?
-			@saveHooks.push(hook)
-		
+			
 	## Core Methods #################################
 
 	# Finds an object or objects in the db 
@@ -130,7 +132,6 @@ class NoSQLite
 		)
 
 	# Stores an object or objects in SQLite. 
-	# If the table doesn't exist, NoSQLite will create the table for you.
 	#
 	# If the objects already exist in the database they will be updated because
 	# NoSQLite issues an "insert or replace"
@@ -147,12 +148,15 @@ class NoSQLite
 	# You can pass in an array of objects as well.	Each row will be inserted
 	#
 	# As always, we'll call you back when everything is ready!
-	save: (obj_desc, save_hook, callback) ->
+	save: (obj_desc, callback) ->
 		obj_descs = obj_desc if _.isArray(obj_desc)
 		obj_descs = [obj_desc] if not _.isArray(obj_desc)
 		if not callback?
 			callback: save_hook
 			save_hook: undefined
+		
+		if save_hook?
+			@save_hooks.push(save_hook)
 
 		self: this
 		db: @db
@@ -175,7 +179,7 @@ class NoSQLite
 				# Each obj description is a special obj where each key
 				# is the name of a table in which to save the obj
 				# and the value is the obj
-				insert_objs: (obj_descs, hook) ->
+				insert_objs: (obj_descs, hooks) ->
 					for obj_desc in obj_descs
 						obj_counter: 0
 						current_obj_desc: obj_desc
@@ -188,12 +192,10 @@ class NoSQLite
 								res.rowsAffected += srs.rowsAffected
 								res.insertId: srs.insertId
 								# insert any other objects
-								if hook?
-									try
-										# each hook can return one or more obj_desc objects
+							  	# each hook can return one or more obj_desc objects
+								if hooks?
+									for hook in hooks
 										insert_objs(hook(srs.insertId, obj_desc))
-									catch err
-										#
 							(transaction, err) ->
 								# we want the transaction error handler to be called
 								# so we can try to fix the error
@@ -201,7 +203,7 @@ class NoSQLite
 								current_obj_desc: obj_descs[obj_counter]
 								return false
 						)
-				insert_objs(obj_descs, save_hook)					
+				insert_objs(obj_descs, self.save_hooks)					
 			(transaction, err) ->
 				self.fixSave(err, current_obj_desc, callback, save_args)
 			(transaction) ->
@@ -287,10 +289,7 @@ if window?
 	window.nosqlite: new NoSQLite()
 else
 	NoSQLite.prototype.sql: (require "./sqlite_sql").sqlite_sql
-	nsl_sync: require "./nsl_sync"
-	nosqlite: new NoSQLite()
-	nosqlite.onSave(nsl_sync.save_sync_hook)
-	exports.nosqlite: nosqlite
+	exports.nosqlite: new NoSQLite()
 	
 # In a browser enviroment, the rest of the NoSQLite functions are 
 # bundled below here in a single JS file

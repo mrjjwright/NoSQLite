@@ -12,9 +12,10 @@
     }
   };
   test_find = function() {
-    var db, db_file, save_sync_hook;
+    var db, db_file;
     db_file = "./test/test_find.db";
     remove_file(db_file);
+    require("../lib/nsl_sync");
     db = nosqlite.open(db_file, function() {
       var log;
       log = {
@@ -39,7 +40,7 @@
       return db.save({
         table: "log",
         obj: log
-      }, save_sync_hook, function(err, res) {
+      }, null, function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
         }
@@ -64,30 +65,7 @@
         });
       });
     });
-    save_sync_hook = function(rowid, obj_desc) {
-      var nsl_obj;
-      nsl_obj = {
-        oid: rowid,
-        tbl_name: obj_desc.table
-      };
-      return [
-        {
-          table: "nsl_obj",
-          obj: nsl_obj
-        }, {
-          table: "unclustered",
-          obj: {
-            oid: rowid
-          }
-        }, {
-          table: "unsent",
-          obj: {
-            oid: rowid
-          }
-        }
-      ];
-    };
-    return save_sync_hook;
+    return db;
   };
   test_save_cd = function() {
     var db, db_file, options;
