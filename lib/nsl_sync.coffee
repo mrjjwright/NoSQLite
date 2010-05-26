@@ -3,52 +3,66 @@ if not window?
 	sys: require "sys"
 	uuid: require "Math.uuid"
 	
-class NSLSync
+class NSLSync extends NoSQLite
 	
 	constructor: (nosqlite) ->
 		@nosqlite: nosqlite;
 		nosqlite.after_save_triggers.push(@post_save_trigger)
 	
-	# Return a nsl_obj for every object inserted
-	# We might also need an entry in the plink table
-	# if the row is an update
-	after_save: (obj_desc, obj, rowid) ->
-		
-		# ignore nsl tables or if this object was part of a sync
-		return if obj_desc.table.startsWith("nsl_") or obj_desc.sync?
-		# else return a obj_desc for an nsl_obj followed by a couple
-		# couple of more entries
-		{
-			table: "nsl_obj_desc"
-			, obj: {
-		 		rowid_name: "oid"
-				, obj_rowid: rowid,
-				, uuid: hashlib.sha1(JSON.stringify(obj))
-				, tbl_name: obj_desc.table
-				, contents: obj # store as a JSON blob
-				, date_created: new Date().toISOString() 
-			}
-			, after: (table, obj, oid) ->
-				# we always put an entry in unclustered. 
+	# Extends the core NoSQLite save_objs functions
+	# Creates a nsl_obj entry for each user obj 
+	#
+	# Stores an attribue called oid in the user table
+	# that references the nsl_obj
+	# Also stores auxilary objs needed for syncing  
+	save_objs: (obj_desc, callback) ->
+		# we accept an array or a single object
+		obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
+	
+		# store a nsl_obj for each user obj
+		nsl_obj_descs: []
+		i: 0
+		for obj_desc in obj_descs
+			after: (obj_desc, obj, oid) ->
+				# we always put an entry in unclustered.
+				i += 1
+				obj_desc: obj_descs[i]
+				obj_desc.oid: oid 
 				return [
-					{ table: "nsl_unclustered", obj: {oid: oid}} 
+					obj_desc
+					, { table: "nsl_unclustered", obj: {oid: oid}} 
 					, {table: "nsl_unsent", obj: {oid: oid}}
 				]
-		}
+			objs: if _.isArray(obj_desc.obj) obj_desc.obj else [obj_desc.obj] 			
+			for obj in objs	
+				nsl_obj_desc: {
+					table: "nsl_obj"
+					, obj: {
+				 		rowid_name: "oid"
+						, uuid: hashlib.sha1(JSON.stringify(obj))
+						, tbl_name: obj_desc.table
+						, content: obj # store as a JSON blob
+						, date_created: new Date().toISOString() 
+					}
+					, after: after 
+				}
+				nsl_objs_descs.push(nsl_obj_desc)
+		super.save_objs(nsl_obj_descs, callback)
+
 
 	# Returns nsl_objs in buckets not in another bucket.
 	# where buckets are like phantom, unclustered and unsent
-	obj_descs_in_bucket: (bucket, exclude_bucket, callback)  ->
+	objs_in_bucket: (bucket, exclude_bucket, callback)  ->
 		self: this
-		sql: "SELECT * FROM ${bucket} JOIN nsl_obj_desc USING(oid)"
+		sql: "SELECT * FROM ${bucket} JOIN nsl_obj USING(oid)"
 		if exclude_bucket?
-			sql += "WHERE NOT EXISTS (SELECT 1 FROM ${exclude_bucket} WHERE oid=nsl_obj_desc.oid)"
+			sql += "WHERE NOT EXISTS (SELECT 1 FROM ${exclude_bucket} WHERE oid=nsl_obj.oid)"
 			self.nosqlite.query sql, (err, res) ->
 				if err? then return callback(err)
 				return callback(null, res)
 	
-	# Returns the complete obj  		
-	objs_in_bucket: (bucket, exclude_bucket, callback) ->
+	# Returns the complete obj from it's flattened table 		
+	blowup_objs_in_bucket: (bucket, exclude_bucket, callback) ->
 		# first we need a list of oids
 		objs: []
 		self.nsl_objs_in_bucket bucket, exclude_bucket, (err, nsl_objs) ->
@@ -57,10 +71,16 @@ class NSLSync
 			oids: _.pluck(nsl_objs, "oid").join(",")
 			throw new Error("incomplete")
 			
-	# Returns all the objs described by obj_descs		
-	get_objs: (obj_descs, callback) ->
-		uuids: _.pluck(obj_descs, "uuid")
-		nosqlite.execute("SELECT content FROM nsl_obj WHERE uuid in (${uuids}) ", callback)
+	# Sends all the objs requested in the gimme part  		
+	send_requested_objs: (req, res, callback) ->
+		return if req.gimme.length is 0
+		#TODO: security, private, shunned checks on the uuids?
+		uuids: req.gimme.join(",")
+		nosqlite.execute "SELECT table, uuid, content FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
+			if err? then return callback(err)
+			req.objs.push(objs)
+			callback()
+			
 			
 	# Makes a cluster from the objs in the unclustered table
 	# if the number of objs in unclustered exceeds the cluster threshold.
@@ -75,12 +95,14 @@ class NSLSync
 	make_cluster: (callback) ->
 		obj_descs_in_bucket "nsl_unclustered", (err, unclustered)->
 			if unclustered.length >= @CLUSTER_THRESHOLD
-				# store the cluster in nsl_cluster
+				# store the cluster in nsl_obj 
 				cluster_desc: {
-					table: "nsl_cluster"
+					table: "nsl_obj"
 					, obj: {
 					 	rowid_name: "cluster_id"
-						, content: unclustered # store as a JSON blob 
+						, table: null
+						, obj_rowid: null
+						, content: _.pluck(unclustered,uuid) # just a collection of uuids 
 						, date_created: new Date().toISOString() 
 						}
 				}
@@ -91,25 +113,25 @@ class NSLSync
 					nosqlite.execute "delete from unclustered", ->
 						callback()
 	
-	# Returns the obj_desc object if it exists.
+	# Returns the obj object if it exists.
 	# 
 	# If it doesn't exist, and phantomize is true,
-	# then creates a blank entry in nsl_obj_desc
+	# then creates a blank entry in nsl_obj
 	# and adds an entry to phantom
-	uuid_to_obj_desc: (uuid, phantomize, callback) ->
-		nosqlite.find "nsl_obj_desc", {uuid: uuid}, (err, obj_desc) ->
+	uuid_to_obj: (uuid, phantomize, callback) ->
+		nosqlite.find "nsl_obj", {uuid: uuid}, (err, obj_desc) ->
 			return callback(err) if err?
 			if obj_desc? then return callback(null, obj_desc)
-			else create_phantom(uuid, callback) if phantomize
+			else if phantomize then create_phantom(uuid, callback)
 			else callback()
 				
 	# Creates a phantom
 	# 
-	# create a blank entry nsl_obj_desc
+	# create a blank entry nsl_obj
 	# and then a phantom obj for the blank
 	create_phantom: (uuid, callback) ->
 		obj_desc: {
-			table: "nsl_obj_desc"
+			table: "nsl_obj"
 			, obj: {
 				 tbl_name: null
 				, obj_rowid: null
@@ -133,17 +155,33 @@ class NSLSync
 	# Otherwise, store the obj in nsl_obj and in it's table.
 	# If the never before seen object is a cluster, store each obj
 	# in the cluster and store the cluster itself as an obj.
-	process_objs: (obj_descs, callback) ->
-		for obj_desc in obj_descs
-			# see if this object exists yets
-			nosqlite.execute "SELECT 1 FROM nsl_obj_desc WHERE uuid = ?", (err, found) ->
-				return callback(err) if err?
-				continue if found is 1
-					
+	save_objs_from_peer: (obj_descs, callback) ->
+		# if a lot of these already exist
+		@save_objs, obj_descs, (err, saved_objs) ->
+			if err? then return callback(err)
+			if saved_objs.length is 0 then callback(null, 0)
+			flow.serialForEach(saved_objs
+				#yada, yada
+				(obj_desc)->
+					if obj_desc.table is "nsl_cluster"
+						uuid_to_obj(uuid, true, this)
+					else this()
+				null
+				->
+					callback(null, saved_objs.length)
+			)
+			
+	# Sends any phantoms over
+	send_objs_in_bucket: (req, bucket, exclude_bucket, callback)->
+		objs_in_bucket bucket, (err, objs)->
+			if phantoms.length > 0
+				req.objs.push(objs)
+			callback(null, objs.length)
+			
 	# Local implementation of the pull protocol
 	# req should have a method called write to write the body of the request
 	# and send to the request
-	pull_request: (req, callback) ->
+	pull_request: (req,  callback) ->
 		self: this
 	
 		# this cycle is called until there are no more items left in phantom to send
@@ -151,15 +189,13 @@ class NSLSync
 		pull_cycle:  ->
 			flow.exec(
 				->
-					# get all the objects in phantom
-					obj_descs_in_bucket("nsl_phantoms", this)
-				(err, phantoms) ->
-					# stop pulling if no more phantoms needed
-					return if not first_cycle and phantoms.length is 0
-					first_cycle: false
-					# prepare the login requests
-					# send phantoms
-					req.write({cmd: "gimme", content: phantoms})
+					# send any phantoms
+					send_phantoms(req, this)
+				(err, num_sent) ->
+					# exit the flow if no more phantoms
+					return if not first_cycle and num_sent is 0
+					if first_cycle is true then first_cycle: false
+					# send over the request
 					req.send(this)
 				(err, res) ->
 					# the response came back
@@ -181,18 +217,15 @@ class NSLSync
 		flow.exec(
 			->
 				# Take this opportunity to make a cluster if we need to.
-				# This choice of a place to make sluster favors 
-				# master-slave configurations, but works for any config
+				# This choice of a place to make a cluster favors 
+				# master-slave like configurations, but works for any configurations
 				make_cluster(this)
 			(err) ->	
-				# pull all the objs requested
-				get_objs(_.pluck(_.pluck(req.body, "gimme"), "content"))
-			(err, objs) ->
-				# send these back to the local client
-				res.write(JSON.stringify(objs))
+				# send all the objs requested
+				send_requested_objs(req, res, this)
 			(err) ->
 				# get all objs in unclustered not in phantom
-				objs_in_bucket "unclustered", "phantom", false, this
+				send_objs_in_bucket(req, "unclustered", "phantom", false, this)
 			(err, unclustered) ->
 				# send these to the local db
 				res.write(unclustered)
@@ -206,7 +239,7 @@ class NSLSync
 		flow.exec(
 			->
 				# get all obj that have never before been sent
-				objs_in_bucket("unsent", this)
+				send_objs_in_bucket(req, "unsent", this)
 			(err, unsent) ->
 				# send unsent items
 				req.write(unsent)

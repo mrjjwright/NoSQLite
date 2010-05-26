@@ -1,23 +1,7 @@
 pull_req1: {
 	type: "pull_req"
 	, db: "peer1"
-	, gimme: [ 
-			{
-				 table: "nsl_cluster"
-				, uuid: "dfdfsedfdfdfdfwsdefsdf"
-				, content: null
-			} 	
-			, {
-				 table: "log"
-				, uuid: "dfdfsedfdfdfdfwsdefsdf"
-				, content: null
-			}
-			, {
-				 table: "log"
-				, uuid: "dfdfddfsedfdfdfdfwsdefsdf"
-				, content: null
-			}
-		]
+	, gimme: [ "dfdfsedfdfdfdfwsdefsdf", "dfdfdf2dfwdfsdfdfs", "dfdfw2dfsdfwedsd"]
 }
 
 
@@ -28,17 +12,26 @@ pull_res1: {
 			{
 				 table: "nsl_cluster"
 				, uuid: "dfdfsedfdfdfdfwsdefsdf"
-				, content: [
-					 	{
-							 table: "user"
-							, uuid: "dfdfsedfdfdfdfwsdefsdf"
-						}
-						, {
-							 table: "user"
-							, uuid: "dfdfddfsedfdfdfdfwsdefsdf"
-						}
-					] 	
-		}
-		
-	] 
+				, date_created: "dfdfsdfdf"
+				, contents: [ "dfdfsedfdfdfdfwsdefsdf", "dfdfdf2dfwdfsdfdfs", "dfdfw2dfsdfwedsd"]
+			}
+			, {
+				 table: "user"
+				, uuid: "dfdfsedfdfdfdfwsdefsdf"
+				, date_created: "dfdfsdfdf"
+				, contents: { 
+					name: "John Wright"
+					, status: "awesome"
+				}
+			}
+			, {
+				 table: "user"
+				, uuid: "dfdfsedfdfdfdfwsdefsdf"
+				, date_created: "dfdfsdfdf"
+				, contents: { 
+					name: "Renee Wright"
+					, status: "tired"
+				}
+			}
+		]
 }

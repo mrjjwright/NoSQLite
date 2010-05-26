@@ -130,45 +130,48 @@ class NoSQLite
 						if err? then return callback(err)
 				)
 		)
-
-	# Stores an object or objects in SQLite. 
-	#
-	# If the objects already exist in the database they will be updated because
-	# NoSQLite issues an "insert or replace"
+		
+	# Saves an object or objects in SQLite.
+	# A convenience method that wraps save_objs
+	save: (table, obj, after, callback) ->
+		obj_desc: {
+			table: table
+			, obj: obj
+			, after: after
+		}
+		save_objs: (obj_desc, callback)
+	
+	# Stores an object or objects in SQLite described by the descriptor.
+	# 
+	# The object descriptor should be an object, or array of objects
+	# where each object has followig attributes:
+	# table - the table to insert the obj
+	# obj - a single obj or array of objects to insert into the table
+	# after (optional) - a function to call after each row has been inserted
 	#
 	# One table is created for the object with the name supplied in param table.
-	# One column is created for each top-level attribute of the object.
-	# All columns are stored with SQLite type affinity "TEXT" except
-	# dates and numeric Javascript types that are stored as "NUMERIC"
+	# The create table statement is generated as follows:
 	# * Strings are stored as text
 	# * Numbers are stored as numbers, don't worry about differences between integer types, floats, etc...
-	# * Dates are stored as numbers, Unix epochs since 1970
-	# * Booleans are stored as numbers, 1 for true or 0 for false
+	# * Dates are stored ISO 8601 date strings
 	# * Other objects (arrays, complex objects) are simply stored as JSON.stringify text
-	# You can pass in an array of objects as well.	Each row will be inserted
 	#
 	# As always, we'll call you back when everything is ready!
-	save: (obj_desc, callback) ->
-		obj_descs = obj_desc if _.isArray(obj_desc)
-		obj_descs = [obj_desc] if not _.isArray(obj_desc)
-		if not callback?
-			callback: save_hook
-			save_hook: undefined
+	save_objs: (obj_desc, callback) ->
+		# we accept an array or a single obj_desc
+		obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
 		
-		if save_hook?
-			@save_hooks.push(save_hook)
-
 		self: this
 		db: @db
 		
 		#aggegrate_results
 		res: {rowsAffected: 0} 
-		# a counter obj that keeps track of where we are at in proccesing 
+		
+		# a counter obj that keeps track of where we are in proccesing 
 		current_err: undefined
 		current_obj_desc: {}
 		save_args: []
 		save_args.push(obj_desc)
-		save_args.push(save_hook)
 		save_args.push(callback)
 		
 		db.transaction(
@@ -179,31 +182,32 @@ class NoSQLite
 				# Each obj description is a special obj where each key
 				# is the name of a table in which to save the obj
 				# and the value is the obj
-				insert_objs: (obj_descs, hooks) ->
+				do_save: (obj_descs) ->
 					for obj_desc in obj_descs
-						obj_counter: 0
+						i: 0
 						current_obj_desc: obj_desc
-						insert_sql: self.sql.insert(obj_desc.table, obj_desc.obj)
-						transaction.executeSql(
-							insert_sql.index_placeholder,
-							insert_sql.bindings, 
-							(transaction, srs) ->
-								obj_counter += 1
-								res.rowsAffected += srs.rowsAffected
-								res.insertId: srs.insertId
-								# insert any other objects
-							  	# each hook can return one or more obj_desc objects
-								if hooks?
-									for hook in hooks
-										insert_objs(hook(srs.insertId, obj_desc))
-							(transaction, err) ->
-								# we want the transaction error handler to be called
-								# so we can try to fix the error
-								current_err: err
-								current_obj_desc: obj_descs[obj_counter]
-								return false
-						)
-				insert_objs(obj_descs, self.save_hooks)					
+						objs: if _.isArray(obj_desc.obj) obj_desc.obj else [obj_desc.obj] 			
+						for obj in objs	
+							insert_sql: self.sql.insert(obj_desc.table, obj)
+							transaction.executeSql(
+								insert_sql.index_placeholder,
+								insert_sql.bindings, 
+								(transaction, srs) ->
+									i += 1
+									current_obj_desc: obj_descs[i]
+									res.rowsAffected += srs.rowsAffected
+									res.insertId: srs.insertId
+									if current_obj_desc.after?
+										do_save(current_obj_desc.after(current_obj_desc, obj, srs.insertId))
+								(transaction, err) ->
+									i += 1
+									# we want the transaction error handler to be called
+									# so we can try to fix the error
+									current_err: err
+									current_obj_desc: obj_descs[i]
+									return false
+							)
+				do_save(obj_descs, self.save_hooks)					
 			(transaction, err) ->
 				self.fixSave(err, current_obj_desc, callback, save_args)
 			(transaction) ->
