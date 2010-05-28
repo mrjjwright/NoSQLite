@@ -89,8 +89,9 @@ class NSLSync extends NoSQLite
 	# cluster_oid -> The oid of the cluster obj in nsl_obj
 	# child_oid -> The oid of a child cluster obj in nsl_obj 
 	make_cluster: (callback) ->
+		self: this
 		obj_descs_in_bucket "nsl_unclustered", (err, unclustered)->
-			if unclustered.length >= @CLUSTER_THRESHOLD
+			if unclustered.length >= self.CLUSTER_THRESHOLD
 				# store the cluster in nsl_obj 
 				cluster_desc: {
 					table: "nsl_obj"
@@ -98,7 +99,7 @@ class NSLSync extends NoSQLite
 					 	rowid_name: "cluster_id"
 						, table: null
 						, obj_rowid: null
-						, content: _.pluck(unclustered,uuid) # just a collection of uuids 
+						, content: _.pluck(unclustered, uuid) # just a collection of uuids 
 						, date_created: new Date().toISOString() 
 						}
 				}
@@ -157,7 +158,7 @@ class NSLSync extends NoSQLite
 			if saved_objs.length is 0 then callback(null, 0)
 			flow.serialForEach(saved_objs
 				#yada, yada
-				(obj_desc)->
+				(obj_desc) ->
 					if obj_desc.table is "nsl_cluster"
 						uuid_to_obj(uuid, true, this)
 					else this()
