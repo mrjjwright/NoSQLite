@@ -26,7 +26,7 @@ else if window?
 		webdb_provider: window
 	else throw Error("Unsupported browser.  Does not support HTML5 Web DB API.")	
 	
-class NoSQLite
+class NSLCore
 
 	# Creates a NoSQLite object
 	# Pass in an optional Core Data compatible mode flag.
@@ -38,7 +38,6 @@ class NoSQLite
 			# whether to check if String columns are JSON
 			# that start with nsl_json:  
 			check_for_json: true
-			sync_mode: false
 		}
 		
 		# setup some of the default filters
@@ -58,25 +57,6 @@ class NoSQLite
 				@sync: new require("./nsl_sync").NSLSync(this)
 			else
 				@sync: new NSLSync(this)
-
-	# Opens a database
-	#
-	# name: the name of a db, or the full path to a db file
-	# options: (optional) the NoSQLite options
-	# callback: (optional) a callback method to use if the call succeeded
-	open: (name, options, callback) ->
-		callback: if _.isFunction(options) then options
-		@options = _.extend(@options, options) if options? and callback?
-		@openDatabase(name, null, null, null, callback)
-		return this
-	
-	# Opens the database 
-	# Name to be the complete path to the db if it makes sense
-	# Also providers can ignore the version attribute
-	openDatabase: (name, version, displayName, estimatedSize, callback) ->
-		@db: webdb_provider.openDatabase name, version, displayName, estimatedSize, ->
-			return callback() if callback?
-		return this
 		
 	# A poss through to the underly db transaction
 	# in case the user wants to execute their own transactions
@@ -202,7 +182,6 @@ class NoSQLite
 								(transaction, err) ->
 									# we want the transaction error handler to be called
 									current_err: err
-									sys.debug(sys.inspect(i))
 									# so we can try to fix the error
 									current_obj_desc: obj_descs[i]
 									return false
@@ -289,12 +268,33 @@ String.prototype.trim: ->
 String.prototype.startsWith: (str) ->
     return this.indexOf(str) is 0
 
+
+nosqlite: {
+	
+	# Opens a database
+	#
+	# name: the name of a db, or the full path to a db file
+	# options: (optional) the NoSQLite options
+	# callback: (optional) a callback method to use if the call succeeded
+	open: (name, options, callback) ->
+		callback: if _.isFunction(options) then options else callback
+		if options.sync_mode is true
+			nsl_sync: require("./nsl_sync")
+			nsl: new nsl_sync.NSLSync(options)
+		else
+			nsl: new NSLCore(options)
+		nsl.db: webdb_provider.openDatabase name, options.version, options.displayName, options.estimatedSize, callback
+		return nsl
+}
+		
 if window?
-	NoSQLite.prototype.sql: sqlite_sql
-	window.nosqlite: new NoSQLite()
+	NSLCore.prototype.sql: sqlite_sql
+	window.nosqlite: nosqlite
+	window.NSLCore: NSLCore
 else
-	NoSQLite.prototype.sql: (require "./sqlite_sql").sqlite_sql
-	exports.nosqlite: new NoSQLite()
+	NSLCore.prototype.sql: (require "./sqlite_sql").sqlite_sql
+	exports.nosqlite: nosqlite
+	exports.NSLCore: NSLCore
 	
 # In a browser enviroment, the rest of the NoSQLite functions are 
 # bundled below here in a single JS file

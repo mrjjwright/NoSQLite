@@ -1,19 +1,20 @@
 # Syncing module
 if not window?
 	sys: require "sys"
-	uuid: require "Math.uuid"
+	hashlib: require "hashlib"
+	nosqlite: require "./nosqlite"
+
+class NSLSync extends nosqlite.NSLCore
 	
-class NSLSync extends NoSQLite
-	
-	# Extends the core NoSQLite save_ojb functions
+	# Extends the core NoSQLite save_obj functions
 	# Creates a nsl_obj entry for each user obj 
 	#
 	# Stores an attribue called oid in the user table
 	# that references the nsl_obj
 	# Also stores auxilary objs needed for syncing  
-	save_obj: (obj_desc, callback) ->
+	save_objs: (the_obj_desc, callback) ->
 		# we accept an array or a single object
-		obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
+		obj_descs = if _.isArray(the_obj_desc) then the_obj_desc else [the_obj_desc]
 	
 		# store a nsl_obj for each user obj
 		nsl_obj_descs: []
@@ -21,9 +22,10 @@ class NSLSync extends NoSQLite
 		for obj_desc in obj_descs
 			after: (obj_desc, obj, oid) ->
 				# we always put an entry in unclustered.
-				i += 1
+				sys.debug(sys.inspect(obj_descs))
 				obj_desc: obj_descs[i]
-				obj_desc.oid: oid 
+				i += 1
+				obj_desc.obj.oid: oid 
 				return [
 					obj_desc,
 					{ table: "nsl_unclustered", obj: {oid: oid}}, 
@@ -42,8 +44,8 @@ class NSLSync extends NoSQLite
 					},
 				    after: after
 				}
-				nsl_objs_descs.push(nsl_obj_desc)
-			super save_obj(nsl_obj_descs, callback)
+				nsl_obj_descs.push(nsl_obj_desc)
+			super(nsl_obj_descs, callback)
 
 
 	# Returns nsl_objs in buckets not in another bucket.
@@ -53,7 +55,7 @@ class NSLSync extends NoSQLite
 		sql: "SELECT * FROM ${bucket} JOIN nsl_obj USING(oid)"
 		if exclude_bucket?
 			sql += "WHERE NOT EXISTS (SELECT 1 FROM ${exclude_bucket} WHERE oid=nsl_obj.oid)"
-			self.nosqlite.query sql, (err, res) ->
+			self.execute sql, (err, res) ->
 				if err? then return callback(err)
 				return callback(null, res)
 	
@@ -251,13 +253,5 @@ class NSLSync extends NoSQLite
 			
 		)
 
-	# Creates a SHA-1 hash of the object's contents 
-	# in the piped export format of SQLite.
-	hash_object: (object) ->
-		values: ""
-		i: 0
-		keys_length: Object.keys(object).length - 1
-		for key, value of object
-			values += value 
-			values += "|" if i++ < keys_length
-		return hashlib.sha1(values)
+if not window?
+	exports.NSLSync: NSLSync

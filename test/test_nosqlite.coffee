@@ -44,8 +44,7 @@ test_find: ->
 test_sync: ->
 	db_file: "./test/test_sync.db"
 	remove_file(db_file)
-	
-	db: nosqlite.open db_file, ->
+	db: nosqlite.open db_file, {sync_mode: true}, ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -62,7 +61,6 @@ test_sync: ->
 			facts: ["hello", "hello", "hello1"],
 			original: {id: 1, text: "some crazy object"} 
 		}
-		
 		db.save "log", log, null, (err, res) ->
 			throw err if err?
 			db.find "log", {text: "hello"},  (err, result) ->
