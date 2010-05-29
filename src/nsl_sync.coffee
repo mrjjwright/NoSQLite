@@ -25,25 +25,25 @@ class NSLSync extends NoSQLite
 				obj_desc: obj_descs[i]
 				obj_desc.oid: oid 
 				return [
-					obj_desc
-					, { table: "nsl_unclustered", obj: {oid: oid}} 
-					, {table: "nsl_unsent", obj: {oid: oid}}
+					obj_desc,
+					{ table: "nsl_unclustered", obj: {oid: oid}}, 
+					{table: "nsl_unsent", obj: {oid: oid}}
 				]
-			objs: if _.isArray(obj_desc.obj) obj_desc.obj else [obj_desc.obj] 			
+			objs: if _.isArray(obj_desc.obj) then obj_desc.obj else [obj_desc.obj] 			
 			for obj in objs	
 				nsl_obj_desc: {
-					table: "nsl_obj"
-					, obj: {
-				 		rowid_name: "oid"
-						, uuid: hashlib.sha1(JSON.stringify(obj))
-						, tbl_name: obj_desc.table
-						, content: obj # store as a JSON blob
-						, date_created: new Date().toISOString() 
-					}
-					, after: after 
+					table: "nsl_obj",
+					obj: {
+				 		rowid_name: "oid",
+						uuid: hashlib.sha1(JSON.stringify(obj)),
+						tbl_name: obj_desc.table,
+						content: obj, 
+						date_created: new Date().toISOString()
+					},
+				    after: after
 				}
 				nsl_objs_descs.push(nsl_obj_desc)
-		super.save_ojb(nsl_obj_descs, callback)
+			super save_obj(nsl_obj_descs, callback)
 
 
 	# Returns nsl_objs in buckets not in another bucket.
@@ -95,12 +95,12 @@ class NSLSync extends NoSQLite
 				# store the cluster in nsl_obj 
 				cluster_desc: {
 					table: "nsl_obj"
-					, obj: {
-					 	rowid_name: "cluster_id"
-						, table: null
-						, obj_rowid: null
-						, content: _.pluck(unclustered, uuid) # just a collection of uuids 
-						, date_created: new Date().toISOString() 
+					obj: {
+					 	rowid_name: "cluster_id",
+						table: null,
+						obj_rowid: null,
+						content: _.pluck(unclustered, uuid), # just a collection of uuids 
+						date_created: new Date().toISOString() 
 						}
 				}
 									 
@@ -129,16 +129,16 @@ class NSLSync extends NoSQLite
 	create_phantom: (uuid, callback) ->
 		obj_desc: {
 			table: "nsl_obj"
-			, obj: {
-				 tbl_name: null
-				, uuid: uuid 
-				, contents: null
-				, date_created: new Date().toISOString()
-			}
-			, after: (obj_desc, obj, rowid) ->
+			obj: {
+				tbl_name: null
+				uuid: uuid,
+				contents: null,
+				date_created: new Date().toISOString(),
+			},
+			after: (obj_desc, obj, rowid) ->
 				return {
-					table: "nsl_phantom"
-					, obj: {
+					table: "nsl_phantom",
+					obj: {
 						oid: rowid
 					}
 				}
@@ -153,12 +153,11 @@ class NSLSync extends NoSQLite
 	# in the cluster and store the cluster itself as an obj.
 	store_objs: (obj_descs, callback) ->
 		# if a lot of these already exist
-		@save_ojb, obj_descs, (err, saved_objs) ->
+		@save_objs obj_descs, (err, saved_objs) ->
 			if err? then return callback(err)
 			if saved_objs.length is 0 then callback(null, 0)
-			flow.serialForEach(saved_objs
-				#yada, yada
-				(obj_desc) ->
+			flow.serialForEach(saved_objs,
+				->
 					if obj_desc.table is "nsl_cluster"
 						uuid_to_obj(uuid, true, this)
 					else this()

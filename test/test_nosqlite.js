@@ -1,5 +1,6 @@
 (function(){
-  var assert, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_update_object;
+  var assert, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_sync, test_update_object;
+  require.paths.unshift("vendor");
   sys = require("sys");
   nosqlite = require("../lib/nosqlite").nosqlite;
   fs = require("fs");
@@ -15,7 +16,6 @@
     var db, db_file;
     db_file = "./test/test_find.db";
     remove_file(db_file);
-    require("../lib/nsl_sync");
     db = nosqlite.open(db_file, function() {
       var log;
       log = {
@@ -41,6 +41,49 @@
         table: "log",
         obj: log
       }, null, function(err, res) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        return db.find("log", {
+          text: "hello"
+        }, function(err, result) {
+          if ((typeof err !== "undefined" && err !== null)) {
+            throw err;
+          }
+          assert.equal(result[0].text, "hello", "should find single object");
+          assert.equal(result[0].facts[2], "hello1", "should recreate arrays");
+          return assert.equal(result[0].original.id, 1, "should recreate complex Objects");
+        });
+      });
+    });
+    return db;
+  };
+  test_sync = function() {
+    var db, db_file;
+    db_file = "./test/test_sync.db";
+    remove_file(db_file);
+    db = nosqlite.open(db_file, function() {
+      var log;
+      log = {
+        text: "hello",
+        occurred_at: new Date().getTime(),
+        created_at: new Date().getTime(),
+        updated_at: new Date().getTime(),
+        source: "string1",
+        log_type: "string1",
+        geo_lat: "string1",
+        geo_long: "string1",
+        metric: 5,
+        external_id: 10,
+        level: 5,
+        readable_metric: "5 miles",
+        facts: ["hello", "hello", "hello1"],
+        original: {
+          id: 1,
+          text: "some crazy object"
+        }
+      };
+      return db.save("log", log, null, function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
         }
@@ -637,7 +680,7 @@
   // peer2()
   // test_pull()
   // test_pull_again()
-  test_find();
+  test_sync();
   //test_find_or_save()
   //test_save()
   //test_update_object()

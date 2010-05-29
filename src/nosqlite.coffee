@@ -139,7 +139,7 @@ class NoSQLite
 			obj: obj, 
 			after: after
 		}
-		save_objs(obj_desc, callback)
+		@save_objs(obj_desc, callback)
 	
 	# Stores an object or objects in SQLite described by the descriptor.
 	# 
@@ -183,31 +183,30 @@ class NoSQLite
 				# is the name of a table in which to save the obj
 				# and the value is the obj
 				do_save: (obj_descs) ->
+					i: 0
 					for obj_desc in obj_descs
-						i: 0
 						current_obj_desc: obj_desc
-						objs: if _.isArray(obj_desc.obj) obj_desc.obj else [obj_desc.obj] 			
+						objs: if _.isArray(obj_desc.obj) then obj_desc.obj else [obj_desc.obj] 
 						for obj in objs	
 							insert_sql: self.sql.insert(obj_desc.table, obj)
 							transaction.executeSql(
 								insert_sql.index_placeholder,
 								insert_sql.bindings, 
 								(transaction, srs) ->
-									i += 1
 									current_obj_desc: obj_descs[i]
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
 									if current_obj_desc.after?
 										do_save(current_obj_desc.after(current_obj_desc, obj, srs.insertId))
 								(transaction, err) ->
-									i += 1
 									# we want the transaction error handler to be called
-									# so we can try to fix the error
 									current_err: err
+									# so we can try to fix the error
 									current_obj_desc: obj_descs[i]
 									return false
 							)
-				do_save(obj_descs, self.save_hooks)					
+						i += 1
+				do_save(obj_descs, self.save_hooks)
 			(transaction, err) ->
 				self.fixSave(err, current_obj_desc, callback, save_args)
 			(transaction) ->
@@ -246,7 +245,7 @@ class NoSQLite
 					return callback(err) if callback?
 				(transaction) ->
 					# we fixed the problem, retry the tx
-					self.save.apply(self, save_args)
+					self.save_objs.apply(self, save_args)
 			)
 
 
