@@ -87,6 +87,7 @@
       };
       return db.save("log", log, null, function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
+			sys.debug(sys.inspect(err))
           throw err;
         }
         return db.find("log", {

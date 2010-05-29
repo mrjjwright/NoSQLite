@@ -51,13 +51,7 @@ class NSLCore
 		@NO_SUCH_TABLE: 0
 		@NO_SUCH_COLUMN: 1
 		@UNRECOGNIZED_ERROR: 99
-		
-		if @options.sync_mode
-			if not window?
-				@sync: new require("./nsl_sync").NSLSync(this)
-			else
-				@sync: new NSLSync(this)
-		
+				
 	# A poss through to the underly db transaction
 	# in case the user wants to execute their own transactions
 	transaction: (start, failure, success) ->
@@ -114,6 +108,10 @@ class NSLCore
 	# Saves an object or objects in SQLite.
 	# A convenience method that wraps save_objs
 	save: (table, obj, after, callback) ->
+		if not callback?
+			callback: after
+			after: undefined
+			
 		obj_desc: {
 			table: table,
 			obj: obj, 
@@ -153,6 +151,7 @@ class NSLCore
 		save_args: []
 		save_args.push(obj_desc)
 		save_args.push(callback)
+		save_func: arguments.callee
 		
 		db.transaction(
 			(transaction) ->
@@ -162,18 +161,17 @@ class NSLCore
 				# Each obj description is a special obj where each key
 				# is the name of a table in which to save the obj
 				# and the value is the obj
-				do_save: (obj_descs) ->
+				do_save: (obj_descs1) ->
 					i: 0
-					for obj_desc in obj_descs
-						current_obj_desc: obj_desc
-						objs: if _.isArray(obj_desc.obj) then obj_desc.obj else [obj_desc.obj] 
+					for obj_desc1 in obj_descs1
+						objs: if _.isArray(obj_desc1.obj) then obj_desc1.obj else [obj_desc1.obj] 
 						for obj in objs	
-							insert_sql: self.sql.insert(obj_desc.table, obj)
+							insert_sql: self.sql.insert(obj_desc1.table, obj)
 							transaction.executeSql(
 								insert_sql.index_placeholder,
 								insert_sql.bindings, 
 								(transaction, srs) ->
-									current_obj_desc: obj_descs[i]
+									current_obj_desc: obj_descs1[i]
 									i += 1
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
@@ -183,17 +181,17 @@ class NSLCore
 									# we want the transaction error handler to be called
 									current_err: err
 									# so we can try to fix the error
-									current_obj_desc: obj_descs[i]
+									current_obj_desc: obj_descs1[i]
 									return false
 									i += 1
 							)
 				do_save(obj_descs, self.save_hooks)
 			(transaction, err) ->
-				self.fixSave(err, current_obj_desc, callback, save_args)
+				self.fix_save(err, current_obj_desc, callback, save_func, save_args)
 			(transaction) ->
 				# oddly browsers, don't call the method above
 				# when an error occurs
-				if current_err? then self.fixSave(current_err, current_obj_desc, callback, save_args)
+				if current_err? then self.fix_save(current_err, current_obj_desc, callback, save_func, save_args)
 				if callback? then callback(null, res)
 		)
 
@@ -204,9 +202,9 @@ class NSLCore
 	# adding the column if it doesn't exist
 	# 
 	# If the error was fixed successfully retries the current
-	# failed transaction.
+	# failed transaction by calling fix_back with the save_args
 	# Else notifies the callback
-	fixSave: (err, obj_desc, callback, save_args) ->
+	fix_save: (err, obj_desc, callback, fixback, save_args) ->
 		return if not err?
 		self: this
 		err: if err? and err.message? then err.message
@@ -226,7 +224,12 @@ class NSLCore
 					return callback(err) if callback?
 				(transaction) ->
 					# we fixed the problem, retry the tx
-					self.save_objs.apply(self, save_args)
+					if fixback?
+						fixback.apply(self, save_args)
+					else if callback?
+						callback(err)
+					else
+						throw err
 			)
 
 
@@ -278,12 +281,16 @@ nosqlite: {
 	# callback: (optional) a callback method to use if the call succeeded
 	open: (name, options, callback) ->
 		callback: if _.isFunction(options) then options else callback
-		if options.sync_mode is true
-			nsl_sync: require("./nsl_sync")
-			nsl: new nsl_sync.NSLSync(options)
+		if options?.sync_mode? is true
+			if not window?
+				NSLSync: require("./nsl_sync").NSLSync
+			else
+				NSLSync: window.NSLSync
+			nsl: new NSLSync(options)
 		else
 			nsl: new NSLCore(options)
-		nsl.db: webdb_provider.openDatabase name, options.version, options.displayName, options.estimatedSize, callback
+		nsl.db: webdb_provider.openDatabase name, '1.0', 'Offline document storage', 5*1024*1024, (db) ->
+			callback(nsl) if callback?
 		return nsl
 }
 		

@@ -1,10 +1,13 @@
 # Syncing module
 if not window?
 	sys: require "sys"
-	hashlib: require "hashlib"
-	nosqlite: require "./nosqlite"
-
-class NSLSync extends nosqlite.NSLCore
+	NSLCore: require("./nosqlite").NSLCore
+	hex_sha1: require("../vendor/sha1").hex_sha1
+else
+	NSLCore: window.NSLCore
+	hex_sha1: window.hex_sha1
+	
+class NSLSync extends NSLCore
 	
 	# Extends the core NoSQLite save_obj functions
 	# Creates a nsl_obj entry for each user obj 
@@ -18,18 +21,14 @@ class NSLSync extends nosqlite.NSLCore
 	
 		# store a nsl_obj for each user obj
 		nsl_obj_descs: []
-		i: 0
 		for obj_desc in obj_descs
 			after: (obj_desc, obj, oid) ->
 				# we always put an entry in unclustered.
-				sys.debug(sys.inspect(obj_descs))
-				obj_desc: obj_descs[i]
-				i += 1
-				obj_desc.obj.oid: oid 
+				obj_desc.child_desc.obj.nsl_oid: oid
 				return [
-					obj_desc,
+					obj_desc.child_desc,
 					{ table: "nsl_unclustered", obj: {oid: oid}}, 
-					{table: "nsl_unsent", obj: {oid: oid}}
+					{ table: "nsl_unsent", obj: {oid: oid}}
 				]
 			objs: if _.isArray(obj_desc.obj) then obj_desc.obj else [obj_desc.obj] 			
 			for obj in objs	
@@ -37,11 +36,12 @@ class NSLSync extends nosqlite.NSLCore
 					table: "nsl_obj",
 					obj: {
 				 		rowid_name: "oid",
-						uuid: hashlib.sha1(JSON.stringify(obj)),
+						uuid: hash_obj(obj),
 						tbl_name: obj_desc.table,
 						content: obj, 
 						date_created: new Date().toISOString()
 					},
+					child_desc: obj_desc,
 				    after: after
 				}
 				nsl_obj_descs.push(nsl_obj_desc)
@@ -252,6 +252,11 @@ class NSLSync extends nosqlite.NSLCore
 			(err, res) ->
 			
 		)
+	
+	hash_obj: (obj) ->
+		return hex_sha1(JSON.stringify(obj))
 
 if not window?
 	exports.NSLSync: NSLSync
+else
+	window.NSLSync: NSLSync
