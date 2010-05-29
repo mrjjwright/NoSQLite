@@ -62,12 +62,11 @@ test_sync: ->
 			facts: ["hello", "hello", "hello1"],
 			original: {id: 1, text: "some crazy object"} 
 		}
+		
 		db.save "log", log, null, (err, res) ->
 			throw err if err?
 			db.find "log", {text: "hello"},  (err, result) ->
 				throw err if err?
-				assert.equal(result[0].text, "hello", "should find single object")
-				assert.equal(result[0].facts[2], "hello1", "should recreate arrays")
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
 				db.find "nsl_obj", {tbl_name: "log"}, (err, res) ->
 					throw err if err?

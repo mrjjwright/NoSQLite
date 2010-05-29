@@ -194,6 +194,7 @@ class NoSQLite
 								insert_sql.bindings, 
 								(transaction, srs) ->
 									current_obj_desc: obj_descs[i]
+									i += 1
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
 									if current_obj_desc.after?
@@ -201,11 +202,12 @@ class NoSQLite
 								(transaction, err) ->
 									# we want the transaction error handler to be called
 									current_err: err
+									sys.debug(sys.inspect(i))
 									# so we can try to fix the error
 									current_obj_desc: obj_descs[i]
 									return false
+									i += 1
 							)
-						i += 1
 				do_save(obj_descs, self.save_hooks)
 			(transaction, err) ->
 				self.fixSave(err, current_obj_desc, callback, save_args)

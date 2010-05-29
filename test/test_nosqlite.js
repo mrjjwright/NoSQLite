@@ -93,8 +93,6 @@
           if ((typeof err !== "undefined" && err !== null)) {
             throw err;
           }
-          assert.equal(result[0].text, "hello", "should find single object");
-          assert.equal(result[0].facts[2], "hello1", "should recreate arrays");
           assert.equal(result[0].original.id, 1, "should recreate complex Objects");
           return db.find("nsl_obj", {
             tbl_name: "log"
