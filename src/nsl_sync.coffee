@@ -9,7 +9,9 @@ else
 	
 class NSLSync extends NSLCore
 	
-	@CLUSTER_THRESHOLD: 10
+	# Static variables
+	# How many objs should be in nsl_unclustered before we create a cluster
+	@CLUSTER_THRESHOLD: 1
 	
 	# Extends the core NoSQLite save_obj functions
 	# Creates a nsl_obj entry for each user obj 
@@ -118,8 +120,9 @@ class NSLSync extends NSLCore
 				self.save_objs cluster_desc, ->
 					# delete all records from unclustered
 					# and insert the clustered
-					nosqlite.execute "delete from unclustered", ->
-						callback()
+					self.execute "delete from nsl_unclustered", (err, res) ->
+						throw err if err?
+						callback(null, res)
 	
 	# Returns the obj object if it exists.
 	# 

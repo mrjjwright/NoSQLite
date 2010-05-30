@@ -256,7 +256,19 @@ class NSLCore
 	# Executes a SQL statement and returns the result
 	# 
 	# This is just a convenience function
-	
+	execute: (sql, callback) ->
+		@db.transaction(
+			(transaction) ->
+				transaction.executeSql(
+					sql
+					null
+					(transaction, srs) ->
+						return callback(null, srs) if callback?
+					(transaction, err) ->
+						return callback(err) if err?
+				)
+		)
+		
 	# Built-in filters
 	
 	# go through a key of an object and checks for String
