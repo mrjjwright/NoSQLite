@@ -62,7 +62,7 @@ class SQL
 	# JS Number -> SQLite NUMERIC
 	# JS Date -> SQLite NUMERIC (can use Unix epoch)
 	# all others use TEXT, when reading them in we try diff
-	create_table: (table, obj) ->
+	create_table: (table, obj, rowid_name) ->
 		@sql: "create table " + @sql_name(table)
 		@columns = []
 		
@@ -70,6 +70,9 @@ class SQL
 			@columns.push("\"Z_PK\" INTEGER PRIMARY KEY AUTOINCREMENT")
 			@columns.push("\"Z_ENT\" INTEGER")
 			@columns.push("\"Z_OPT\" INTEGER")
+		
+		if rowid_name?
+			@columns.push("\"${rowid_name}\" INTEGER PRIMARY KEY")
 			
 		for key of obj
 			if key is "rowid" then continue
@@ -166,7 +169,7 @@ root: if window? then window else exports
 root.sqlite_sql: {}
 root.sqlite_sql.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
 root.sqlite_sql.insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
-root.sqlite_sql.create_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj)
+root.sqlite_sql.create_table: (table, obj, rowid_name, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj, rowid_name)
 root.sqlite_sql.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
 root.sqlite_sql.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)
 root.sqlite_sql.convert_to_sqlite: (value, core_data_mode) -> new SQL(core_data_mode).convert_to_sqlite(value)

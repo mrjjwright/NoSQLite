@@ -85,9 +85,8 @@
           text: "some crazy object"
         }
       };
-      return db.save("log", log, null, function(err, res) {
+      return db.save("log", log, function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
-			sys.debug(sys.inspect(err))
           throw err;
         }
         return db.find("log", {
@@ -104,7 +103,13 @@
               throw err;
             }
             assert.equal(res[0].tbl_name, "log", "should find aux obj");
-            return sys.debug("Test simple save and find: passed");
+            sys.debug("Test simple save and find: passed");
+            return db.objs_in_bucket("nsl_unclustered", function(err, objs) {
+              assert.equal(objs[0].content.oid, 1, "should put an object in unclustered");
+              return db.make_cluster(function() {
+                return sys.debug("Made cluster");
+              });
+            });
           });
         });
       });

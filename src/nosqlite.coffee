@@ -79,15 +79,21 @@ class NSLCore
 	#
 	# As always, we will call you back when everything is ready!
 	find: (table, predicate, the_callback) ->
-		select: @sql.select(table, predicate)
 		self: this
+		if table.startsWith("select ") or table.startsWith("SELECT ")
+			sql: table
+			bindings: []
+		else 
+			select: @sql.select(table, predicate)
+			sql: select.index_placeholder
+			bindings: select.bindings
 		callback: the_callback
 		callback: predicate if _.isFunction(predicate)
 		self.db.transaction(
 			(transaction) ->
 				transaction.executeSql(
-					select.index_placeholder, 
-					select.bindings, 
+					sql, 
+					bindings, 
 					(transaction, srs) ->
 						res: []
 						for i in [0..srs.rows.length-1]
@@ -172,6 +178,8 @@ class NSLCore
 							j: 0
 						
 					for obj_desc in obj_descs
+						if not obj_desc.objs? or not _.isArray(obj_desc.objs)
+							throw Error("Each obj_desc should have an objs array on it")
 						for obj in obj_desc.objs	
 							insert_sql: self.sql.insert(obj_desc.table, obj)
 							transaction.executeSql(
@@ -200,12 +208,12 @@ class NSLCore
 							)
 				do_save(obj_descs, self.save_hooks)
 			(err) ->
-				self.fix_save(current_err, current_obj_desc.table, current_obj, callback, save_func, save_args)
+				self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
 			(transaction) ->
 				# oddly browsers, don't call the method above
 				# when an error occurs
-				if current_err? then return self.fix_save(current_err, current_obj_desc.table, current_obj, callback, save_func, save_args)
-				if callback? then callback(null, res)
+				if current_err? then return self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
+				if callback? then return callback(null, res)
 		)
 
 
@@ -217,15 +225,15 @@ class NSLCore
 	# If the error was fixed successfully retries the current
 	# failed transaction by calling fix_back with the save_args
 	# Else notifies the callback
-	fix_save: (err, table, obj, callback, fixback, save_args) ->
+	fix_save: (err, obj_desc, obj, callback, fixback, save_args) ->
 		return if not err?
 		self: this
 		err: if err? and err.message? then err.message
 		errobj: @parse_error(err)
 		fix_sql: 
 			switch errobj.code
-				when @NO_SUCH_TABLE then @sql.create_table(table, obj).sql
-				when @NO_SUCH_COLUMN then @sql.add_column(table, errobj.column).sql
+				when @NO_SUCH_TABLE then @sql.create_table(obj_desc.table, obj, obj_desc.rowid_name).sql
+				when @NO_SUCH_COLUMN then @sql.add_column(obj_desc.table, errobj.column).sql
 				else null
 		if not fix_sql?
 			return callback(err) if callback?
@@ -245,7 +253,10 @@ class NSLCore
 						throw err
 			)
 
-
+	# Executes a SQL statement and returns the result
+	# 
+	# This is just a convenience function
+	
 	# Built-in filters
 	
 	# go through a key of an object and checks for String

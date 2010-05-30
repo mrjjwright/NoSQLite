@@ -61,15 +61,19 @@ test_sync: ->
 			facts: ["hello", "hello", "hello1"],
 			original: {id: 1, text: "some crazy object"} 
 		}
-		db.save "log", log, null, (err, res) ->
+		db.save "log", log,(err, res) ->
 			throw err if err?
 			db.find "log", {text: "hello"},  (err, result) ->
 				throw err if err?
-				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
+				assert.equal(result[0].original.id, 1, "should recreate complex Objects")				
 				db.find "nsl_obj", {tbl_name: "log"}, (err, res) ->
 					throw err if err?
 					assert.equal(res[0].tbl_name, "log", "should find aux obj")
 					sys.debug("Test simple save and find: passed")
+					db.objs_in_bucket "nsl_unclustered", (err, objs)->
+						assert.equal(objs[0].content.oid, 1, "should put an object in unclustered")
+						db.make_cluster ->
+							sys.debug "Made cluster"
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"

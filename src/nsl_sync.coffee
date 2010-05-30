@@ -9,6 +9,8 @@ else
 	
 class NSLSync extends NSLCore
 	
+	@CLUSTER_THRESHOLD: 10
+	
 	# Extends the core NoSQLite save_obj functions
 	# Creates a nsl_obj entry for each user obj 
 	#
@@ -25,19 +27,21 @@ class NSLSync extends NSLCore
 			# set the foreign key on the oid
 			obj_desc.fk: "oid"
 			nsl_obj_desc: {
-				table: "nsl_obj",
-				objs: [],
+				table: "nsl_obj"
+				objs: []
+				rowid_name: "oid"
 				children: [
 					obj_desc,
 					{ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"}, 
 					{ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"}
 				]
 			}
+			if not obj_desc.objs? or not _.isArray(obj_desc.objs)
+				throw Error("Each obj_desc should have an objs array on it")
 			
 			for obj in obj_desc.objs	
 				nsl_obj: {
-					rowid_name: "oid"
-					uuid: hash_obj(obj)
+					uuid: @hash_obj(obj)
 					tbl_name: obj_desc.table
 					content: obj
 					date_created: new Date().toISOString()
@@ -51,13 +55,17 @@ class NSLSync extends NSLCore
 	# Returns nsl_objs in buckets not in another bucket.
 	# where buckets are like phantom, unclustered and unsent
 	objs_in_bucket: (bucket, exclude_bucket, callback)  ->
+		if _.isFunction(exclude_bucket)
+			callback: exclude_bucket
+			exclude_bucket: null
+			
 		self: this
 		sql: "SELECT * FROM ${bucket} JOIN nsl_obj USING(oid)"
 		if exclude_bucket?
 			sql += "WHERE NOT EXISTS (SELECT 1 FROM ${exclude_bucket} WHERE oid=nsl_obj.oid)"
-			self.execute sql, (err, res) ->
-				if err? then return callback(err)
-				return callback(null, res)
+		self.find sql, (err, res) ->
+			if err? then return callback(err)
+			return callback(null, res)
 	
 	# Returns the complete obj from it's flattened table 		
 	blowup_objs_in_bucket: (bucket, exclude_bucket, callback) ->
@@ -92,21 +100,22 @@ class NSLSync extends NSLCore
 	# child_oid -> The oid of a child cluster obj in nsl_obj 
 	make_cluster: (callback) ->
 		self: this
-		obj_descs_in_bucket "nsl_unclustered", (err, unclustered)->
-			if unclustered.length >= self.CLUSTER_THRESHOLD
+		self.objs_in_bucket "nsl_unclustered", (err, unclustered) ->
+			if err? then throw err
+			if unclustered.length >= NSLSync.CLUSTER_THRESHOLD
 				# store the cluster in nsl_obj 
 				cluster_desc: {
-					table: "nsl_obj"
-					obj: {
-					 	rowid_name: "cluster_id",
-						table: null,
-						obj_rowid: null,
-						content: _.pluck(unclustered, uuid), # just a collection of uuids 
-						date_created: new Date().toISOString() 
+					table: "nsl_cluster"
+					rowid_name: "cluster_id"
+					objs: [
+						{
+							objs: _.pluck(unclustered, "uuid") 
+							date_created: new Date().toISOString() 
 						}
+					]
 				}
 									 
-				nosqlite.save cluster_desc, ->
+				self.save_objs cluster_desc, ->
 					# delete all records from unclustered
 					# and insert the clustered
 					nosqlite.execute "delete from unclustered", ->
@@ -133,17 +142,19 @@ class NSLSync extends NSLCore
 			table: "nsl_obj"
 			obj: {
 				tbl_name: null
-				uuid: uuid,
-				contents: null,
-				date_created: new Date().toISOString(),
-			},
-			after: (obj_desc, obj, rowid) ->
-				return {
-					table: "nsl_phantom",
+				uuid: uuid
+				contents: null
+				date_created: new Date().toISOString()
+			}
+			children: [
+				{
+					table: "nsl_phantom"
+					fk: "oid"
 					obj: {
-						oid: rowid
+						oid: null
 					}
 				}
+			]
 		}
 		nosqlite.save(obj_desc, callback)
 		
@@ -158,7 +169,8 @@ class NSLSync extends NSLCore
 		@save_objs obj_descs, (err, saved_objs) ->
 			if err? then return callback(err)
 			if saved_objs.length is 0 then callback(null, 0)
-			flow.serialForEach(saved_objs,
+			flow.serialForEach(
+				saved_objs
 				->
 					if obj_desc.table is "nsl_cluster"
 						uuid_to_obj(uuid, true, this)
@@ -181,8 +193,8 @@ class NSLSync extends NSLCore
 		
 		# construct a pull request
 		req: {
-			type: "pull",
-			objs: [],
+			type: "pull"
+			objs: []
 			gimme: []
 		}
 		
