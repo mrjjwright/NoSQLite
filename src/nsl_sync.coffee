@@ -18,34 +18,34 @@ class NSLSync extends NSLCore
 	save_objs: (the_obj_desc, callback) ->
 		# we accept an array or a single object
 		obj_descs = if _.isArray(the_obj_desc) then the_obj_desc else [the_obj_desc]
-	
 		# store a nsl_obj for each user obj
 		nsl_obj_descs: []
+		
 		for obj_desc in obj_descs
-			after: (obj_desc, obj, oid) ->
-				# we always put an entry in unclustered.
-				obj_desc.child_desc.obj.nsl_oid: oid
-				return [
-					obj_desc.child_desc,
-					{ table: "nsl_unclustered", obj: {oid: oid}}, 
-					{ table: "nsl_unsent", obj: {oid: oid}}
+			# set the foreign key on the oid
+			obj_desc.fk: "oid"
+			nsl_obj_desc: {
+				table: "nsl_obj",
+				objs: [],
+				children: [
+					obj_desc,
+					{ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"}, 
+					{ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"}
 				]
-			objs: if _.isArray(obj_desc.obj) then obj_desc.obj else [obj_desc.obj] 			
-			for obj in objs	
-				nsl_obj_desc: {
-					table: "nsl_obj",
-					obj: {
-				 		rowid_name: "oid",
-						uuid: hash_obj(obj),
-						tbl_name: obj_desc.table,
-						content: obj, 
-						date_created: new Date().toISOString()
-					},
-					child_desc: obj_desc,
-				    after: after
+			}
+			
+			for obj in obj_desc.objs	
+				nsl_obj: {
+					rowid_name: "oid"
+					uuid: hash_obj(obj)
+					tbl_name: obj_desc.table
+					content: obj
+					date_created: new Date().toISOString()
 				}
-				nsl_obj_descs.push(nsl_obj_desc)
-			super(nsl_obj_descs, callback)
+				nsl_obj_desc.objs.push(nsl_obj)
+				
+			nsl_obj_descs.push(nsl_obj_desc)
+		super(nsl_obj_descs, callback)
 
 
 	# Returns nsl_objs in buckets not in another bucket.
