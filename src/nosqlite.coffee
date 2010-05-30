@@ -191,20 +191,20 @@ class NSLCore
 										do_save(current_obj_desc.children)
 								(transaction, err) ->
 									# we want the transaction error handler to be called
-									current_err: err
 									# so we can try to fix the error
+									current_err: err
 									current_obj_desc: obj_descs[i]
 									current_obj: current_obj_desc.objs[j]
 									set_counters()
-									return false
+									return true
 							)
 				do_save(obj_descs, self.save_hooks)
-			(transaction, err) ->
-				self.fix_save(err, current_obj_desc.table, current_obj, callback, save_func, save_args)
+			(err) ->
+				self.fix_save(current_err, current_obj_desc.table, current_obj, callback, save_func, save_args)
 			(transaction) ->
 				# oddly browsers, don't call the method above
 				# when an error occurs
-				if current_err? then self.fix_save(current_err, current_obj_desc.table, current_obj, callback, save_func, save_args)
+				if current_err? then return self.fix_save(current_err, current_obj_desc.table, current_obj, callback, save_func, save_args)
 				if callback? then callback(null, res)
 		)
 
