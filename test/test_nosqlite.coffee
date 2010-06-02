@@ -70,10 +70,13 @@ test_sync: ->
 					throw err if err?
 					assert.equal(res[0].tbl_name, "log", "should find aux obj")
 					sys.debug("Test simple save and find: passed")
-					db.objs_in_bucket "nsl_unclustered", (err, objs)->
-						assert.equal(objs[0].content.oid, 1, "should put an object in unclustered")
-						db.make_cluster ->
-							sys.debug "Made cluster"
+					db.make_cluster ->
+						db.objs_in_bucket "nsl_unclustered", (err, objs)->
+							peer1_db: "test/test_sync_peer1.db"
+							remove_file(peer1_db)
+							db1: nosqlite.open peer1_db, {sync_mode: true}, ->
+								db1.store_objs objs, (err, num_saved) ->
+									sys.debug("Saved ${num_saved} objs")
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"

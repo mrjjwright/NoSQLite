@@ -104,10 +104,19 @@
             }
             assert.equal(res[0].tbl_name, "log", "should find aux obj");
             sys.debug("Test simple save and find: passed");
-            return db.objs_in_bucket("nsl_unclustered", function(err, objs) {
-              assert.equal(objs[0].content.oid, 1, "should put an object in unclustered");
-              return db.make_cluster(function() {
-                return sys.debug("Made cluster");
+            return db.make_cluster(function() {
+              return db.objs_in_bucket("nsl_unclustered", function(err, objs) {
+                var db1, peer1_db;
+                peer1_db = "test/test_sync_peer1.db";
+                remove_file(peer1_db);
+                db1 = nosqlite.open(peer1_db, {
+                  sync_mode: true
+                }, function() {
+                  return db1.store_objs(objs, function(err, num_saved) {
+                    return sys.debug(("Saved " + (num_saved) + " objs"));
+                  });
+                });
+                return db1;
               });
             });
           });

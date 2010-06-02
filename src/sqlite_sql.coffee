@@ -76,9 +76,11 @@ class SQL
 			
 		for key of obj
 			if key is "rowid" then continue
+			if key is rowid_name then continue
+			
 			value: obj[key]
 			type: if _.isNumber(value) or _.isDate(value) then "NUMERIC" else "TEXT"
-			if key is "guid"
+			if key is "guid" or key is "uuid"
 				type: "VARCHAR UNIQUE NOT NULL" 
 			@columns.push("\"" + @sql_name(key) + "\" " + type)
 		@sql += "(" + @columns.join(",") + ");"

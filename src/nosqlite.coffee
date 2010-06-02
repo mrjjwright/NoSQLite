@@ -98,6 +98,7 @@ class NSLCore
 						res: []
 						for i in [0..srs.rows.length-1]
 							obj: srs.rows.item(i)
+							continue if not obj?
 							# apply any filters to the obj
 							for filter in self.filters
 								try
@@ -105,6 +106,7 @@ class NSLCore
 								catch err1
 									# ignore errors from filters
 							res.push(obj)
+						res: undefined if res.length is 0
 						callback(null, res)
 					(transaction, err) ->
 						if err? then return callback(err)
@@ -191,7 +193,8 @@ class NSLCore
 									set_counters()
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
-									if current_obj_desc.children? and current_obj_desc.children.length > 0
+									if current_obj_desc?.children?.length > 0
+										sys.debug(sys.inspect(current_obj_desc.children))
 										# set the foreign key on the children
 										for child_desc in current_obj_desc.children
 											for child_obj in child_desc.objs
@@ -257,16 +260,20 @@ class NSLCore
 	# 
 	# This is just a convenience function
 	execute: (sql, callback) ->
+		srs: {}
 		@db.transaction(
 			(transaction) ->
 				transaction.executeSql(
 					sql
 					null
-					(transaction, srs) ->
-						return callback(null, srs) if callback?
+					(transaction, the_srs) ->
+						srs: the_srs
 					(transaction, err) ->
 						return callback(err) if err?
 				)
+			null
+			(transaction) ->
+				return callback(null, srs) if callback?
 		)
 		
 	# Built-in filters

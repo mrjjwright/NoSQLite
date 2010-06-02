@@ -3,6 +3,7 @@ if not window?
 	sys: require "sys"
 	NSLCore: require("./nosqlite").NSLCore
 	hex_sha1: require("../vendor/sha1").hex_sha1
+	flow: require("../vendor/flow")
 else
 	NSLCore: window.NSLCore
 	hex_sha1: window.hex_sha1
@@ -24,14 +25,20 @@ class NSLSync extends NSLCore
 		obj_descs = if _.isArray(the_obj_desc) then the_obj_desc else [the_obj_desc]
 		# store a nsl_obj for each user obj
 		nsl_obj_descs: []
-		
 		for obj_desc in obj_descs
+			if obj_desc.table is "nsl_obj"
+				# just ignore nsl objects and pass them  to super
+				# to be saved
+				nsl_obj_descs.push(obj_desc)
+				continue
+				
 			# set the foreign key on the oid
 			obj_desc.fk: "oid"
 			nsl_obj_desc: {
 				table: "nsl_obj"
 				objs: []
 				rowid_name: "oid"
+				unique: ["uuid"]
 				children: [
 					obj_desc,
 					{ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"}, 
@@ -84,7 +91,7 @@ class NSLSync extends NSLCore
 		return if req.gimme.length is 0
 		#TODO: security, private, shunned checks on the uuids?
 		uuids: req.gimme.join(",")
-		nosqlite.execute "SELECT table, uuid, content FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
+		nosqlite.find "SELECT table, uuid, content FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
 			if err? then return callback(err)
 			req.objs.push(objs)
 			callback()
@@ -104,25 +111,29 @@ class NSLSync extends NSLCore
 		self: this
 		self.objs_in_bucket "nsl_unclustered", (err, unclustered) ->
 			if err? then throw err
+			sys.debug(sys.inspect(unclustered))
 			if unclustered.length >= NSLSync.CLUSTER_THRESHOLD
-				# store the cluster in nsl_obj 
-				cluster_desc: {
-					table: "nsl_cluster"
-					rowid_name: "cluster_id"
-					objs: [
-						{
-							objs: _.pluck(unclustered, "uuid") 
-							date_created: new Date().toISOString() 
-						}
-					]
-				}
+
+				# delete all records from unclustered
+				# and insert the clustered
+				self.execute "delete from nsl_unclustered", (err, res) ->
+					throw err if err?
+
+					# store the cluster in nsl_obj 
+					cluster_desc: {
+						table: "nsl_cluster"
+						rowid_name: "cluster_id"
+						objs: [
+							{
+								objs: _.pluck(unclustered, "uuid") 
+								date_created: new Date().toISOString() 
+							}
+						]
+					}
 									 
-				self.save_objs cluster_desc, ->
-					# delete all records from unclustered
-					# and insert the clustered
-					self.execute "delete from nsl_unclustered", (err, res) ->
+					self.save_objs cluster_desc, (err, res)->
 						throw err if err?
-						callback(null, res)
+						callback(null, res) if callback?
 	
 	# Returns the obj object if it exists.
 	# 
@@ -130,10 +141,11 @@ class NSLSync extends NSLCore
 	# then creates a blank entry in nsl_obj
 	# and adds an entry to phantom
 	uuid_to_obj: (uuid, phantomize, callback) ->
-		nosqlite.find "nsl_obj", {uuid: uuid}, (err, obj_desc) ->
+		self: this
+		@find "nsl_obj", {uuid: uuid}, (err, obj) ->
 			return callback(err) if err?
-			if obj_desc? then return callback(null, obj_desc)
-			else if phantomize then create_phantom(uuid, callback)
+			if obj? then return callback(null, obj)
+			else if phantomize then self.create_phantom(uuid, callback)
 			else callback()	
 				
 	# Creates a phantom
@@ -143,23 +155,24 @@ class NSLSync extends NSLCore
 	create_phantom: (uuid, callback) ->
 		obj_desc: {
 			table: "nsl_obj"
-			obj: {
+			objs: [{
 				tbl_name: null
 				uuid: uuid
 				contents: null
 				date_created: new Date().toISOString()
-			}
+			}]
 			children: [
 				{
 					table: "nsl_phantom"
 					fk: "oid"
-					obj: {
+					objs: [
+						{	
 						oid: null
-					}
+					}]
 				}
 			]
 		}
-		nosqlite.save(obj_desc, callback)
+		@save_objs(obj_desc, callback)
 		
 	# Stores any new objects received from another db
 	# 
@@ -167,21 +180,27 @@ class NSLSync extends NSLCore
 	# Otherwise, store the obj in nsl_obj and in it's table.
 	# If the never before seen object is a cluster, store each obj
 	# in the cluster and store the cluster itself as an obj.
-	store_objs: (obj_descs, callback) ->
+	store_objs: (objs, callback) ->
 		# if a lot of these already exist
-		@save_objs obj_descs, (err, saved_objs) ->
+		self: this
+		obj_desc: {
+			table: "nsl_obj"
+			rowid_name: "oid"
+			objs: objs
+			ignore_unique_errors: true
+		}
+		@save_objs obj_desc, (err, res) ->
 			if err? then return callback(err)
-			if saved_objs.length is 0 then callback(null, 0)
-			flow.serialForEach(
-				saved_objs
-				->
-					if obj_desc.table is "nsl_cluster"
-						uuid_to_obj(uuid, true, this)
-					else this()
-				null
-				->
-					callback(null, saved_objs.length)
-			)
+			for obj in objs
+				if obj.tbl_name is "nsl_cluster"
+					flow.serialForEach(
+						obj.content.objs
+						(uuid) ->
+							self.uuid_to_obj(uuid, true, this)
+						null
+						null
+					)
+			callback(null, res.rowsAffected)
 			
 	# Sends any phantoms over
 	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->
