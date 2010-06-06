@@ -50,6 +50,7 @@ class NSLCore
 		# used for error handling
 		@NO_SUCH_TABLE: 0
 		@NO_SUCH_COLUMN: 1
+		@CONSTRAINT_FAILED: 2
 		@UNRECOGNIZED_ERROR: 99
 				
 	# A poss through to the underly db transaction
@@ -194,7 +195,6 @@ class NSLCore
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
 									if current_obj_desc?.children?.length > 0
-										sys.debug(sys.inspect(current_obj_desc.children))
 										# set the foreign key on the children
 										for child_desc in current_obj_desc.children
 											for child_obj in child_desc.objs
@@ -203,8 +203,12 @@ class NSLCore
 								(transaction, err) ->
 									# we want the transaction error handler to be called
 									# so we can try to fix the error
-									current_err: err
 									current_obj_desc: obj_descs[i]
+									errobj: self.parse_error(err.message)
+									if errobj.code is self.CONSTRAINT_FAILED
+										if current_obj_desc.ignore_constraint_errors? is true
+											return false
+									current_err: err
 									current_obj: current_obj_desc.objs[j]
 									set_counters()
 									return true
@@ -243,7 +247,13 @@ class NSLCore
 		else
 			@db.transaction(
 				(transaction) ->
-					transaction.executeSql(fix_sql)
+					transaction.executeSql(
+						fix_sql,
+						null,
+						null,
+						(transaction, err) ->
+							throw err if err?
+					)
 				(transaction, err) ->
 					return callback(err) if callback?
 				(transaction) ->
@@ -304,6 +314,8 @@ class NSLCore
 		else if err.indexOf("no column named ") != -1
 			errobj.code = @NO_SUCH_COLUMN
 			errobj.column = err.split("no column named ")[1].trim()
+		else if err.indexOf("constraint failed") != -1
+			errobj.code = @CONSTRAINT_FAILED
 		else
 			errobj.code = @UNRECOGNIZED_ERROR
 		return errobj

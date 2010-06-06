@@ -113,7 +113,14 @@
                   sync_mode: true
                 }, function() {
                   return db1.store_objs(objs, function(err, num_saved) {
-                    return sys.debug(("Saved " + (num_saved) + " objs"));
+                    sys.debug(("Saved " + (num_saved) + " objs"));
+                    sys.debug("Starting second save!!!!!!!!!!!!!");
+                    return db1.store_objs(objs, function(err, num_saved) {
+                      if ((typeof err !== "undefined" && err !== null)) {
+                        throw err;
+                      }
+                      return sys.debug(("Saved " + (num_saved) + " objs"));
+                    });
                   });
                 });
                 return db1;

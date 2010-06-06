@@ -111,7 +111,6 @@ class NSLSync extends NSLCore
 		self: this
 		self.objs_in_bucket "nsl_unclustered", (err, unclustered) ->
 			if err? then throw err
-			sys.debug(sys.inspect(unclustered))
 			if unclustered.length >= NSLSync.CLUSTER_THRESHOLD
 
 				# delete all records from unclustered
@@ -158,7 +157,7 @@ class NSLSync extends NSLCore
 			objs: [{
 				tbl_name: null
 				uuid: uuid
-				contents: null
+				content: null
 				date_created: new Date().toISOString()
 			}]
 			children: [
@@ -187,7 +186,7 @@ class NSLSync extends NSLCore
 			table: "nsl_obj"
 			rowid_name: "oid"
 			objs: objs
-			ignore_unique_errors: true
+			ignore_constraint_errors: true
 		}
 		@save_objs obj_desc, (err, res) ->
 			if err? then return callback(err)
@@ -198,9 +197,10 @@ class NSLSync extends NSLCore
 						(uuid) ->
 							self.uuid_to_obj(uuid, true, this)
 						null
-						null
+						->
+							callback(null, res.rowsAffected)
 					)
-			callback(null, res.rowsAffected)
+			
 			
 	# Sends any phantoms over
 	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->

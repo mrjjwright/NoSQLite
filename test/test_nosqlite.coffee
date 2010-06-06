@@ -77,6 +77,10 @@ test_sync: ->
 							db1: nosqlite.open peer1_db, {sync_mode: true}, ->
 								db1.store_objs objs, (err, num_saved) ->
 									sys.debug("Saved ${num_saved} objs")
+									sys.debug("Starting second save!!!!!!!!!!!!!")
+									db1.store_objs objs, (err, num_saved) ->
+										if err? then throw err
+										sys.debug("Saved ${num_saved} objs")
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"
