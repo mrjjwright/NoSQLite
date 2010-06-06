@@ -117,10 +117,9 @@ class NSLCore
 	# Saves an object or objects in SQLite.
 	# A convenience method that wraps save_objs
 	save: (table, obj, callback) ->
-
 		obj_desc: {
 			table: table
-			objs: [obj] 
+			objs: _.flatten([obj]) 
 		}
 		@save_objs(obj_desc, callback)
 	
@@ -174,16 +173,18 @@ class NSLCore
 					# we have to count the callbacks as they come in
 					# to match them up with the obj_descs and objs 
 					# we are managing (power of closures)
-					set_counters: ->
-						j: j + 1
-						if j is obj_desc.objs.length
-							i: i + 1
+					set_counters: () ->
+						if j is (current_obj_desc.objs.length - 1)
+							i += 1
 							j: 0
+						else
+							j += 1
+							
 						
 					for obj_desc in obj_descs
 						if not obj_desc.objs? or not _.isArray(obj_desc.objs)
 							throw Error("Each obj_desc should have an objs array on it")
-						for obj in obj_desc.objs	
+						for obj in obj_desc.objs
 							insert_sql: self.sql.insert(obj_desc.table, obj)
 							transaction.executeSql(
 								insert_sql.index_placeholder,
@@ -204,16 +205,16 @@ class NSLCore
 									# we want the transaction error handler to be called
 									# so we can try to fix the error
 									current_obj_desc: obj_descs[i]
+									current_obj: current_obj_desc.objs[j]
+									set_counters()
 									errobj: self.parse_error(err.message)
 									if errobj.code is self.CONSTRAINT_FAILED
 										if current_obj_desc.ignore_constraint_errors? is true
 											return false
 									current_err: err
-									current_obj: current_obj_desc.objs[j]
-									set_counters()
 									return true
 							)
-				do_save(obj_descs, self.save_hooks)
+				do_save(obj_descs)
 			(err) ->
 				self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
 			(transaction) ->
@@ -242,6 +243,7 @@ class NSLCore
 				when @NO_SUCH_TABLE then @sql.create_table(obj_desc.table, obj, obj_desc.rowid_name).sql
 				when @NO_SUCH_COLUMN then @sql.add_column(obj_desc.table, errobj.column).sql
 				else null
+		
 		if not fix_sql?
 			return callback(err) if callback?
 		else

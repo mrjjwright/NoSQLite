@@ -41,7 +41,7 @@ test_find: ->
 				assert.equal(result[0].facts[2], "hello1", "should recreate arrays")
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")
 
-test_sync: ->
+test_sync:  ->
 	db_file: "./test/test_sync.db"
 	remove_file(db_file)
 	db: nosqlite.open db_file, {sync_mode: true}, ->
@@ -61,7 +61,9 @@ test_sync: ->
 			facts: ["hello", "hello", "hello1"],
 			original: {id: 1, text: "some crazy object"} 
 		}
-		db.save "log", log,(err, res) ->
+		log1: _.clone(log)
+		log1.text: "Hello1"
+		db.save "log", [log, log1], (err, res) ->
 			throw err if err?
 			db.find "log", {text: "hello"},  (err, result) ->
 				throw err if err?
@@ -77,10 +79,6 @@ test_sync: ->
 							db1: nosqlite.open peer1_db, {sync_mode: true}, ->
 								db1.store_objs objs, (err, num_saved) ->
 									sys.debug("Saved ${num_saved} objs")
-									sys.debug("Starting second save!!!!!!!!!!!!!")
-									db1.store_objs objs, (err, num_saved) ->
-										if err? then throw err
-										sys.debug("Saved ${num_saved} objs")
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"

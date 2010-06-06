@@ -175,12 +175,11 @@ class NSLSync extends NSLCore
 		
 	# Stores any new objects received from another db
 	# 
-	# If the obj uuid already exists in nsl_obj, ignore the obj.
+	# If the obj uuid already exists in nsl_obj, ignore the constraint error.
 	# Otherwise, store the obj in nsl_obj and in it's table.
 	# If the never before seen object is a cluster, store each obj
 	# in the cluster and store the cluster itself as an obj.
 	store_objs: (objs, callback) ->
-		# if a lot of these already exist
 		self: this
 		obj_desc: {
 			table: "nsl_obj"
@@ -190,23 +189,33 @@ class NSLSync extends NSLCore
 		}
 		@save_objs obj_desc, (err, res) ->
 			if err? then return callback(err)
-			for obj in objs
-				if obj.tbl_name is "nsl_cluster"
-					flow.serialForEach(
-						obj.content.objs
-						(uuid) ->
-							self.uuid_to_obj(uuid, true, this)
-						null
-						->
-							callback(null, res.rowsAffected)
-					)
+			flow.serialForEach(
+				objs
+				(obj) ->
+					if obj.tbl_name is "nsl_cluster"
+						flow.serialForEach(
+							obj.content.objs
+							(uuid) ->
+								self.uuid_to_obj(uuid, true, this.MULTI())
+							null
+							null
+						)
+						
+					else
+						#TODO: test for parent id
+						this()
+				null
+				->
+					callback(null, res.rowsAffected)
+			)
 			
 			
-	# Sends any phantoms over
+	# Sends any objs over
 	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->
 		objs_in_bucket bucket, (err, objs)->
-			if phantoms.length > 0
+			if objs.length > 0
 				req_or_res.objs.push(objs)
+				_.flatten(req_or_res.objs)
 			callback(null, objs.length)
 	
 	

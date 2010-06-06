@@ -65,7 +65,7 @@
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {
-      var log;
+      var log, log1;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -85,7 +85,9 @@
           text: "some crazy object"
         }
       };
-      return db.save("log", log, function(err, res) {
+      log1 = _.clone(log);
+      log1.text = "Hello1";
+      return db.save("log", [log, log1], function(err, res) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
         }
@@ -113,14 +115,7 @@
                   sync_mode: true
                 }, function() {
                   return db1.store_objs(objs, function(err, num_saved) {
-                    sys.debug(("Saved " + (num_saved) + " objs"));
-                    sys.debug("Starting second save!!!!!!!!!!!!!");
-                    return db1.store_objs(objs, function(err, num_saved) {
-                      if ((typeof err !== "undefined" && err !== null)) {
-                        throw err;
-                      }
-                      return sys.debug(("Saved " + (num_saved) + " objs"));
-                    });
+                    return sys.debug(("Saved " + (num_saved) + " objs"));
                   });
                 });
                 return db1;
