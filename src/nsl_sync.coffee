@@ -32,19 +32,13 @@ class NSLSync extends NSLCore
 				nsl_obj_descs.push(obj_desc)
 				continue
 				
-			# set the foreign key on the oid
-			obj_desc.fk: "oid"
 			nsl_obj_desc: {
 				table: "nsl_obj"
 				objs: []
 				rowid_name: "oid"
 				unique: ["uuid"]
-				children: [
-					obj_desc,
-					{ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"}, 
-					{ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"}
-				]
 			}
+
 			if not obj_desc.objs? or not _.isArray(obj_desc.objs)
 				throw Error("Each obj_desc should have an objs array on it")
 			
@@ -54,8 +48,20 @@ class NSLSync extends NSLCore
 					tbl_name: obj_desc.table
 					content: obj
 					date_created: new Date().toISOString()
+					children: []
 				}
 				nsl_obj_desc.objs.push(nsl_obj)
+				# this is the original object which becomes a child
+				# obj of nsl_obj
+				new_obj_desc: {
+					table: obj_desc.table
+					objs: [obj]
+					fk: "oid"
+				}
+				
+				nsl_obj.children.push(new_obj_desc)
+				nsl_obj.children.push({ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"})
+				nsl_obj.children.push({ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"})
 				
 			nsl_obj_descs.push(nsl_obj_desc)
 		super(nsl_obj_descs, callback)

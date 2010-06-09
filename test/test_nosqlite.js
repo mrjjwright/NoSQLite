@@ -87,7 +87,7 @@
         }
       };
       logs = [];
-      _a = 0; _b = 1000;
+      _a = 0; _b = 2000;
       for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         log1 = _.clone(log);
         log1.text = ("hello" + (i));

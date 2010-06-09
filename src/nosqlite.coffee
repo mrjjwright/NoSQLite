@@ -132,9 +132,11 @@ class NSLCore
 								return callback(err)
 						)
 					null
-					->
-						return callback() if callback?
+					null
 				)
+			null
+			(transaction) ->
+						return callback() if callback?
 		)
 		
 	# Saves an object or objects in SQLite.
@@ -165,7 +167,7 @@ class NSLCore
 	# As always, we'll call you back when everything is ready!
 	save_objs: (obj_desc, callback) ->
 		# we accept an array or a single obj_desc
-		obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
+		the_obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
 		
 		self: this
 		db: @db
@@ -181,7 +183,7 @@ class NSLCore
 		save_args.push(obj_desc)
 		save_args.push(callback)
 		save_func: arguments.callee
-		
+
 		db.transaction(
 			(transaction) ->
 				self.transaction: transaction
@@ -193,7 +195,7 @@ class NSLCore
 				do_save: (obj_descs) ->
 					i: 0
 					j: 0
-					
+
 					# we have to count the callbacks as they come in
 					# to match them up with the obj_descs and objs 
 					# we are managing (power of closures)
@@ -203,8 +205,7 @@ class NSLCore
 							j: 0
 						else
 							j += 1
-							
-						
+
 					for obj_desc in obj_descs
 						if not obj_desc.objs? or not _.isArray(obj_desc.objs)
 							throw Error("Each obj_desc should have an objs array on it")
@@ -215,18 +216,17 @@ class NSLCore
 								insert_sql.index_placeholder,
 								insert_sql.bindings, 
 								(transaction, srs) ->
-									sys.debug(sys.inspect(new Date().getTime() - t))
 									current_obj_desc: obj_descs[i]
 									current_obj: current_obj_desc.objs[j]
 									set_counters()
 									res.rowsAffected += srs.rowsAffected
 									res.insertId: srs.insertId
-									if current_obj_desc?.children?.length > 0
+									if current_obj?.children?.length > 0
 										# set the foreign key on the children
-										for child_desc in current_obj_desc.children
+										for child_desc in current_obj.children
 											for child_obj in child_desc.objs
 												child_obj[child_desc.fk]: srs.insertId
-										do_save(current_obj_desc.children)
+										do_save(current_obj.children)
 								(transaction, err) ->
 									# we want the transaction error handler to be called
 									# so we can try to fix the error
@@ -240,7 +240,7 @@ class NSLCore
 									current_err: err
 									return true
 							)
-				do_save(obj_descs)
+				do_save(the_obj_descs)
 			(err) ->
 				self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
 			(transaction) ->

@@ -65,7 +65,7 @@ test_sync:  ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 		logs: []
-		for i in [0..1000]
+		for i in [0..2000]
 			log1: _.clone(log)
 			log1.text: "hello${i}"
 			logs.push(log1)
