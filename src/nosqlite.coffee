@@ -18,6 +18,7 @@ if not window? and require?
 	sys: require("sys")
 	require("underscore")
 	nsl_debug: sys.debug
+	flow: require("flow")
 else if window?
 	# Running in the browser
 	#Assume that all the required libs are bundled into a single file
@@ -113,6 +114,28 @@ class NSLCore
 						if err? then return callback(err)
 				)
 		)
+	
+	# executes table create statements for the obj descs 
+	create_schema: (obj_descs, callback) ->
+		self: this
+		self.db.transaction(
+			(transaction) ->
+				flow.serialForEach(
+					obj_descs
+					(obj_desc) ->
+						create_table_sql: self.sql.create_table(obj_desc.table, obj_desc.objs[0], obj_desc.rowid_name).sql
+						transaction.executeSql(
+							create_table_sql,
+							null
+							this
+							(transaction, err) ->
+								return callback(err)
+						)
+					null
+					->
+						return callback() if callback?
+				)
+		)
 		
 	# Saves an object or objects in SQLite.
 	# A convenience method that wraps save_objs
@@ -122,6 +145,7 @@ class NSLCore
 			objs: _.flatten([obj]) 
 		}
 		@save_objs(obj_desc, callback)
+	
 	
 	# Stores an object or objects in SQLite described by the descriptor.
 	# 
@@ -185,11 +209,13 @@ class NSLCore
 						if not obj_desc.objs? or not _.isArray(obj_desc.objs)
 							throw Error("Each obj_desc should have an objs array on it")
 						for obj in obj_desc.objs
+							t: new Date().getTime()
 							insert_sql: self.sql.insert(obj_desc.table, obj)
 							transaction.executeSql(
 								insert_sql.index_placeholder,
 								insert_sql.bindings, 
 								(transaction, srs) ->
+									sys.debug(sys.inspect(new Date().getTime() - t))
 									current_obj_desc: obj_descs[i]
 									current_obj: current_obj_desc.objs[j]
 									set_counters()

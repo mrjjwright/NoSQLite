@@ -2,6 +2,7 @@ require.paths.unshift "vendor"
 sys: require "sys"
 nosqlite: require("../lib/nosqlite").nosqlite
 fs: require "fs"
+flow: require "flow"
 assert: require "assert"
 
 remove_file: (file) ->
@@ -44,6 +45,8 @@ test_find: ->
 test_sync:  ->
 	db_file: "./test/test_sync.db"
 	remove_file(db_file)
+	
+	
 	db: nosqlite.open db_file, {sync_mode: true}, ->
 		log: {
 			text: "hello",
@@ -61,24 +64,83 @@ test_sync:  ->
 			facts: ["hello", "hello", "hello1"],
 			original: {id: 1, text: "some crazy object"} 
 		}
-		log1: _.clone(log)
-		log1.text: "Hello1"
-		db.save "log", [log, log1], (err, res) ->
-			throw err if err?
-			db.find "log", {text: "hello"},  (err, result) ->
-				throw err if err?
+		logs: []
+		for i in [0..1000]
+			log1: _.clone(log)
+			log1.text: "hello${i}"
+			logs.push(log1)
+		
+		log_desc: {
+			table: "log"
+			objs: [log]
+		}
+
+		#create a schema
+		schema: [
+			{
+				table: "log"
+				objs: [log]
+			}
+			{
+				table: "nsl_phantom"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_unsent"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_unclustered"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_obj"
+				rowid_name: "oid"
+				objs: [
+					{
+						oid: 1
+						uuid: "text"
+						content: "text"
+						tbl_name: "text"
+						date_created: new Date()
+					}
+				]
+			}
+		]
+
+		flow.exec(
+			->
+				db.create_schema(schema, this)
+			(err) ->
+				if err? then throw err
+				db.save "log", logs, this
+			(err, result) ->
+				sys.debug(sys.inspect(err))
+				if err? then throw err
+				db.find "log", {text: "hello"},  this
+			(err, result) ->
+				if err? then throw err
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")				
-				db.find "nsl_obj", {tbl_name: "log"}, (err, res) ->
-					throw err if err?
+				db.find "nsl_obj", {tbl_name: "log"}, this
+			(err, res) ->
 					assert.equal(res[0].tbl_name, "log", "should find aux obj")
 					sys.debug("Test simple save and find: passed")
-					db.make_cluster ->
-						db.objs_in_bucket "nsl_unclustered", (err, objs)->
-							peer1_db: "test/test_sync_peer1.db"
-							remove_file(peer1_db)
-							db1: nosqlite.open peer1_db, {sync_mode: true}, ->
-								db1.store_objs objs, (err, num_saved) ->
-									sys.debug("Saved ${num_saved} objs")
+					db.make_cluster this
+			->
+				db.objs_in_bucket "nsl_unclustered", this
+			(err, objs) ->
+				this_flow: this
+				peer1_db: "test/test_sync_peer1.db"
+				remove_file(peer1_db)
+				db1: nosqlite.open peer1_db, {sync_mode: true}, (err, db1) ->
+					db1.store_objs objs, this_flow
+			(err, num_saved) ->
+				if err? then throw err
+				sys.debug("Saved ${num_saved} objs")
+		)
 
 test_save_cd: ->
 	db_file: "./test/test_save_cd.db"

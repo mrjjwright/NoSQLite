@@ -1,9 +1,10 @@
 (function(){
-  var assert, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_sync, test_update_object;
+  var assert, flow, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_sync, test_update_object;
   require.paths.unshift("vendor");
   sys = require("sys");
   nosqlite = require("../lib/nosqlite").nosqlite;
   fs = require("fs");
+  flow = require("flow");
   assert = require("assert");
   remove_file = function(file) {
     try {
@@ -65,7 +66,7 @@
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {
-      var log, log1;
+      var _a, _b, i, log, log1, log_desc, logs, schema;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -85,44 +86,105 @@
           text: "some crazy object"
         }
       };
-      log1 = _.clone(log);
-      log1.text = "Hello1";
-      return db.save("log", [log, log1], function(err, res) {
+      logs = [];
+      _a = 0; _b = 1000;
+      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
+        log1 = _.clone(log);
+        log1.text = ("hello" + (i));
+        logs.push(log1);
+      }
+      log_desc = {
+        table: "log",
+        objs: [log]
+      };
+      //create a schema
+      schema = [
+        {
+          table: "log",
+          objs: [log]
+        }, {
+          table: "nsl_phantom",
+          rowid_name: "oid",
+          objs: [
+            {
+              oid: 1
+            }
+          ]
+        }, {
+          table: "nsl_unsent",
+          rowid_name: "oid",
+          objs: [
+            {
+              oid: 1
+            }
+          ]
+        }, {
+          table: "nsl_unclustered",
+          rowid_name: "oid",
+          objs: [
+            {
+              oid: 1
+            }
+          ]
+        }, {
+          table: "nsl_obj",
+          rowid_name: "oid",
+          objs: [
+            {
+              oid: 1,
+              uuid: "text",
+              content: "text",
+              tbl_name: "text",
+              date_created: new Date()
+            }
+          ]
+        }
+      ];
+      return flow.exec(function() {
+        return db.create_schema(schema, this);
+      }, function(err) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        return db.save("log", logs, this);
+      }, function(err, result) {
+        sys.debug(sys.inspect(err));
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
         }
         return db.find("log", {
           text: "hello"
-        }, function(err, result) {
-          if ((typeof err !== "undefined" && err !== null)) {
-            throw err;
-          }
-          assert.equal(result[0].original.id, 1, "should recreate complex Objects");
-          return db.find("nsl_obj", {
-            tbl_name: "log"
-          }, function(err, res) {
-            if ((typeof err !== "undefined" && err !== null)) {
-              throw err;
-            }
-            assert.equal(res[0].tbl_name, "log", "should find aux obj");
-            sys.debug("Test simple save and find: passed");
-            return db.make_cluster(function() {
-              return db.objs_in_bucket("nsl_unclustered", function(err, objs) {
-                var db1, peer1_db;
-                peer1_db = "test/test_sync_peer1.db";
-                remove_file(peer1_db);
-                db1 = nosqlite.open(peer1_db, {
-                  sync_mode: true
-                }, function() {
-                  return db1.store_objs(objs, function(err, num_saved) {
-                    return sys.debug(("Saved " + (num_saved) + " objs"));
-                  });
-                });
-                return db1;
-              });
-            });
-          });
+        }, this);
+      }, function(err, result) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        assert.equal(result[0].original.id, 1, "should recreate complex Objects");
+        return db.find("nsl_obj", {
+          tbl_name: "log"
+        }, this);
+      }, function(err, res) {
+        assert.equal(res[0].tbl_name, "log", "should find aux obj");
+        sys.debug("Test simple save and find: passed");
+        return db.make_cluster(this);
+      }, function() {
+        return db.objs_in_bucket("nsl_unclustered", this);
+      }, function(err, objs) {
+        var db1, peer1_db, this_flow;
+        this_flow = this;
+        peer1_db = "test/test_sync_peer1.db";
+        remove_file(peer1_db);
+        db1 = nosqlite.open(peer1_db, {
+          sync_mode: true
+        }, function(err, db1) {
+          return db1.store_objs(objs, this_flow);
         });
+        return db1;
+      }, function(err, num_saved) {
+        if ((typeof err !== "undefined" && err !== null)) {
+          throw err;
+        }
+        return sys.debug(("Saved " + (num_saved) + " objs"));
       });
     });
     return db;
