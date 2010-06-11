@@ -36,13 +36,19 @@ class SQL
 		@name_placeholder: sql + "(" + ands_name_placeholder.join(" AND ") + ")"
 		return this
 
-	insert: (table, obj, replace) ->
+	insert: (table, obj, options) ->
 		sql: "insert "
-		sql: sql + " or replace " if replace
+		sql: sql + " or replace " if options?.replace? is true
 		sql: sql + "into " +  @sql_name(table)
 		question_marks: []
 		names: []
+		if options?.rowid_sql?
+			@columns.push(options.rowid_name)
+			question_marks.push("(${options.rowid_sql})")
+			
 		for key of obj
+			continue if _.include(@columns, @sql_name(key))
+			continue if key is "nsl_children"
 			@bindings.push(@convert_to_sqlite(obj[key]))
 			@columns.push(@sql_name(key))
 			question_marks.push("?")
@@ -170,7 +176,7 @@ class SQL
 root: if window? then window else exports
 root.sqlite_sql: {}
 root.sqlite_sql.select: (table, predicate, core_data_mode) -> new SQL(core_data_mode).select(table, predicate)
-root.sqlite_sql.insert: (table, obj, core_data_mode) -> new SQL(core_data_mode).insert(table, obj)
+root.sqlite_sql.insert: (table, obj, options, core_data_mode) -> new SQL(core_data_mode).insert(table, obj, options)
 root.sqlite_sql.create_table: (table, obj, rowid_name, core_data_mode) -> new SQL(core_data_mode).create_table(table, obj, rowid_name)
 root.sqlite_sql.add_column: (table, column, type, core_data_mode) -> new SQL(core_data_mode).add_column(table, column, type)
 root.sqlite_sql.create_temp_table: (table, obj, core_data_mode) -> new SQL(core_data_mode).create_temp_table(table, obj)

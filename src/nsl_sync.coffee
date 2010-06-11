@@ -10,6 +10,57 @@ else
 	
 class NSLSync extends NSLCore
 	
+	constructor: (dbname, options, callback) ->
+		self: this
+		#create a schema
+		schema: [
+			{
+				table: "nsl_phantom"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_unsent"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_unclustered"
+				rowid_name: "oid"
+				objs: [{oid: 1}]
+			}
+			{
+				table: "nsl_obj"
+				rowid_name: "oid"
+				objs: [
+					{
+						oid: 1
+						uuid: "text"
+						content: "text"
+						tbl_name: "text"
+						date_created: new Date().toISOString()
+					}
+				]
+			}
+			{
+				table: "nsl_cluster"
+				rowid_name: "cluster_id"
+				objs: [
+					{
+						objs: [] 
+						date_created: new Date().toISOString() 
+					}
+				]
+				
+			}
+		]
+		
+		super dbname, options, ->
+			self.create_table schema, (err, res) ->
+				return callback(err) if err?
+				callback(null, self)
+			
+			
 	# Static variables
 	# How many objs should be in nsl_unclustered before we create a cluster
 	@CLUSTER_THRESHOLD: 1
@@ -48,7 +99,7 @@ class NSLSync extends NSLCore
 					tbl_name: obj_desc.table
 					content: obj
 					date_created: new Date().toISOString()
-					children: []
+					nsl_children: []
 				}
 				nsl_obj_desc.objs.push(nsl_obj)
 				# this is the original object which becomes a child
@@ -59,9 +110,9 @@ class NSLSync extends NSLCore
 					fk: "oid"
 				}
 				
-				nsl_obj.children.push(new_obj_desc)
-				nsl_obj.children.push({ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"})
-				nsl_obj.children.push({ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"})
+				nsl_obj.nsl_children.push(new_obj_desc)
+				nsl_obj.nsl_children.push({ table: "nsl_unclustered", objs: [{oid: null}], fk: "oid"})
+				nsl_obj.nsl_children.push({ table: "nsl_unsent", objs: [{oid: null}], fk: "oid"})
 				
 			nsl_obj_descs.push(nsl_obj_desc)
 		super(nsl_obj_descs, callback)
@@ -160,20 +211,22 @@ class NSLSync extends NSLCore
 	create_phantom: (uuid, callback) ->
 		obj_desc: {
 			table: "nsl_obj"
-			objs: [{
-				tbl_name: null
-				uuid: uuid
-				content: null
-				date_created: new Date().toISOString()
-			}]
-			children: [
+			objs: [
 				{
-					table: "nsl_phantom"
-					fk: "oid"
-					objs: [
-						{	
-						oid: null
-					}]
+					tbl_name: null
+					uuid: uuid
+					content: null
+					date_created: new Date().toISOString()
+					nsl_children: [
+						{
+							table: "nsl_phantom"
+							fk: "oid"
+							objs: [
+								{	
+								oid: null
+							}]
+						}
+					]
 				}
 			]
 		}

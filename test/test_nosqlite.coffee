@@ -47,7 +47,7 @@ test_sync:  ->
 	remove_file(db_file)
 	
 	
-	db: nosqlite.open db_file, {sync_mode: true}, ->
+	db: nosqlite.open db_file, {sync_mode: true},  ->
 		log: {
 			text: "hello",
 			occurred_at: new Date().getTime(),
@@ -65,7 +65,7 @@ test_sync:  ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 		logs: []
-		for i in [0..2000]
+		for i in [0..1000]
 			log1: _.clone(log)
 			log1.text: "hello${i}"
 			logs.push(log1)
@@ -81,61 +81,37 @@ test_sync:  ->
 				table: "log"
 				objs: [log]
 			}
-			{
-				table: "nsl_phantom"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_unsent"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_unclustered"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_obj"
-				rowid_name: "oid"
-				objs: [
-					{
-						oid: 1
-						uuid: "text"
-						content: "text"
-						tbl_name: "text"
-						date_created: new Date()
-					}
-				]
-			}
 		]
 
 		flow.exec(
 			->
-				db.create_schema(schema, this)
+				db.create_table(schema, this)
 			(err) ->
 				if err? then throw err
 				db.save "log", logs, this
 			(err, result) ->
 				sys.debug(sys.inspect(err))
 				if err? then throw err
-				db.find "log", {text: "hello"},  this
+				db.find "log", {text: "hello1"},  this
 			(err, result) ->
 				if err? then throw err
 				assert.equal(result[0].original.id, 1, "should recreate complex Objects")				
 				db.find "nsl_obj", {tbl_name: "log"}, this
 			(err, res) ->
-					assert.equal(res[0].tbl_name, "log", "should find aux obj")
-					sys.debug("Test simple save and find: passed")
-					db.make_cluster this
-			->
+				throw err if err?
+				assert.equal(res[0].tbl_name, "log", "should find aux obj")
+				sys.debug("Test simple save and find: passed")
+				db.make_cluster this
+			(err, res)->
+				throw err if err?
 				db.objs_in_bucket "nsl_unclustered", this
 			(err, objs) ->
 				this_flow: this
 				peer1_db: "test/test_sync_peer1.db"
 				remove_file(peer1_db)
 				db1: nosqlite.open peer1_db, {sync_mode: true}, (err, db1) ->
+					sys.debug(sys.inspect(err))
+					throw err if err?
 					db1.store_objs objs, this_flow
 			(err, num_saved) ->
 				if err? then throw err

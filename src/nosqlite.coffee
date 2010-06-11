@@ -33,7 +33,7 @@ class NSLCore
 	# Pass in an optional Core Data compatible mode flag.
 	# params:
 	# * (optional) If set to `true` will create a core data compatible schema.
-	constructor: (options) ->			
+	constructor: (db_name, options, callback) ->			
 		@options = {
 			core_data_mode: false
 			# whether to check if String columns are JSON
@@ -53,6 +53,13 @@ class NSLCore
 		@NO_SUCH_COLUMN: 1
 		@CONSTRAINT_FAILED: 2
 		@UNRECOGNIZED_ERROR: 99
+		self: this
+		self.db: webdb_provider.openDatabase db_name, '1.0', 'Offline document storage', 5*1024*1024, (db) ->
+			self.create_table {table: "last_insert", rowid_name: "row_id", objs: [{row_id: null}]}, ->
+				self.execute "insert into last_insert values (-1)", (err, res) ->
+					return callback(err) if err?
+					return callback(null, self) if callback?
+		return this
 				
 	# A poss through to the underly db transaction
 	# in case the user wants to execute their own transactions
@@ -94,8 +101,8 @@ class NSLCore
 		self.db.transaction(
 			(transaction) ->
 				transaction.executeSql(
-					sql, 
-					bindings, 
+					sql
+					bindings
 					(transaction, srs) ->
 						res: []
 						for i in [0..srs.rows.length-1]
@@ -116,7 +123,9 @@ class NSLCore
 		)
 	
 	# executes table create statements for the obj descs 
-	create_schema: (obj_descs, callback) ->
+	create_table: (obj_desc, callback) ->
+		obj_descs: if _.isArray(obj_desc) then obj_desc else [obj_desc]
+		
 		self: this
 		self.db.transaction(
 			(transaction) ->
@@ -167,7 +176,7 @@ class NSLCore
 	# As always, we'll call you back when everything is ready!
 	save_objs: (obj_desc, callback) ->
 		# we accept an array or a single obj_desc
-		the_obj_descs = if _.isArray(obj_desc) then obj_desc else [obj_desc]
+		obj_descs: if _.isArray(obj_desc) then obj_desc else [obj_desc]
 		
 		self: this
 		db: @db
@@ -177,13 +186,13 @@ class NSLCore
 		
 		# a counter obj that keeps track of where we are in proccesing 
 		current_err: undefined
-		current_obj_desc: {}
-		current_obj: {}
 		save_args: []
 		save_args.push(obj_desc)
 		save_args.push(callback)
 		save_func: arguments.callee
-
+		insert_options: {
+			rowid_sql: "select row_id from last_insert"
+		}
 		db.transaction(
 			(transaction) ->
 				self.transaction: transaction
@@ -192,56 +201,52 @@ class NSLCore
 				# Each obj description is a special obj where each key
 				# is the name of a table in which to save the obj
 				# and the value is the obj
-				do_save: (obj_descs) ->
-					i: 0
-					j: 0
+				transactionSuccess: (transaction, srs) ->
+					res.rowsAffected += srs.rowsAffected
+					res.insertId: srs.insertId
+				transactionFailure: (transaction, err) ->
+					# we want the transaction error handler to be called
+					# so we can try to fix the error
+					errobj: self.parse_error(err.message)
+					if errobj.code is self.CONSTRAINT_FAILED
+						if obj_descs[0].ignore_constraint_errors? is true
+							return false
+					current_err: err
+					return true
 
-					# we have to count the callbacks as they come in
-					# to match them up with the obj_descs and objs 
-					# we are managing (power of closures)
-					set_counters: () ->
-						if j is (current_obj_desc.objs.length - 1)
-							i += 1
-							j: 0
-						else
-							j += 1
-
-					for obj_desc in obj_descs
-						if not obj_desc.objs? or not _.isArray(obj_desc.objs)
-							throw Error("Each obj_desc should have an objs array on it")
-						for obj in obj_desc.objs
-							t: new Date().getTime()
-							insert_sql: self.sql.insert(obj_desc.table, obj)
-							transaction.executeSql(
-								insert_sql.index_placeholder,
-								insert_sql.bindings, 
-								(transaction, srs) ->
-									current_obj_desc: obj_descs[i]
-									current_obj: current_obj_desc.objs[j]
-									set_counters()
-									res.rowsAffected += srs.rowsAffected
-									res.insertId: srs.insertId
-									if current_obj?.children?.length > 0
-										# set the foreign key on the children
-										for child_desc in current_obj.children
-											for child_obj in child_desc.objs
-												child_obj[child_desc.fk]: srs.insertId
-										do_save(current_obj.children)
-								(transaction, err) ->
-									# we want the transaction error handler to be called
-									# so we can try to fix the error
-									current_obj_desc: obj_descs[i]
-									current_obj: current_obj_desc.objs[j]
-									set_counters()
-									errobj: self.parse_error(err.message)
-									if errobj.code is self.CONSTRAINT_FAILED
-										if current_obj_desc.ignore_constraint_errors? is true
-											return false
-									current_err: err
-									return true
-							)
-				do_save(the_obj_descs)
+				for obj_desc in obj_descs
+					if not obj_desc.objs? or not _.isArray(obj_desc.objs)
+						throw Error("Each obj_desc should have an objs array on it")
+					for obj in obj_desc.objs
+						insert_sql: self.sql.insert(obj_desc.table, obj)
+						transaction.executeSql(
+							insert_sql.index_placeholder
+							insert_sql.bindings
+							transactionSuccess
+							transactionFailure
+						)
+						# child objects we insert using the last_row table
+						# this table is updated with the rowid of the last insert
+						# which we can use for all child inserts
+						transaction.executeSql(
+							"update last_insert set row_id = last_insert_rowid()"
+						)
+						if obj.nsl_children?
+							for child_desc in obj.nsl_children
+								if not child_desc.fk?
+									throw new Error("Must have fk on child obj")
+								insert_options.rowid_name: child_desc.fk
+								for child_obj in child_desc.objs
+									child_sql: self.sql.insert(child_desc.table, child_obj, insert_options)
+									transaction.executeSql(
+										child_sql.index_placeholder
+										child_sql.bindings
+										transactionSuccess
+										transactionFailure
+									)
+							
 			(err) ->
+				sys.debug(sys.inspect(err))
 				self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
 			(transaction) ->
 				# oddly browsers, don't call the method above
@@ -369,12 +374,12 @@ nosqlite: {
 				NSLSync: require("./nsl_sync").NSLSync
 			else
 				NSLSync: window.NSLSync
-			nsl: new NSLSync(options)
+			nsl: new NSLSync(name, options, callback)
 		else
-			nsl: new NSLCore(options)
-		nsl.db: webdb_provider.openDatabase name, '1.0', 'Offline document storage', 5*1024*1024, (db) ->
-			callback(nsl) if callback?
+			nsl: new NSLCore(name, options, callback)
+		
 		return nsl
+		
 }
 		
 if window?
