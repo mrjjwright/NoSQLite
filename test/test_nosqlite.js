@@ -87,7 +87,7 @@
         }
       };
       logs = [];
-      for (i = 0; i <= 1000; i += 1) {
+      for (i = 0; i <= 100; i += 1) {
         log1 = _.clone(log);
         log1.text = ("hello" + (i));
         logs.push(log1);
@@ -146,7 +146,6 @@
         db1 = nosqlite.open(peer1_db, {
           sync_mode: true
         }, function(err, db1) {
-          sys.debug(sys.inspect(err));
           if ((typeof err !== "undefined" && err !== null)) {
             throw err;
           }

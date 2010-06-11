@@ -65,7 +65,7 @@ test_sync:  ->
 			original: {id: 1, text: "some crazy object"} 
 		}
 		logs: []
-		for i in [0..1000]
+		for i in [0..100]
 			log1: _.clone(log)
 			log1.text: "hello${i}"
 			logs.push(log1)
@@ -110,7 +110,6 @@ test_sync:  ->
 				peer1_db: "test/test_sync_peer1.db"
 				remove_file(peer1_db)
 				db1: nosqlite.open peer1_db, {sync_mode: true}, (err, db1) ->
-					sys.debug(sys.inspect(err))
 					throw err if err?
 					db1.store_objs objs, this_flow
 			(err, num_saved) ->

@@ -191,7 +191,7 @@ class NSLSync extends NSLCore
 						throw err if err?
 						callback(null, res) if callback?
 	
-	# Returns the obj object if it exists.
+	# Returns the nsl_obj if it exists.
 	# 
 	# If it doesn't exist, and phantomize is true,
 	# then creates a blank entry in nsl_obj
@@ -251,18 +251,18 @@ class NSLSync extends NSLCore
 			flow.serialForEach(
 				objs
 				(obj) ->
+					this_flow: this
 					if obj.tbl_name is "nsl_cluster"
 						flow.serialForEach(
 							obj.content.objs
 							(uuid) ->
 								self.uuid_to_obj(uuid, true, this.MULTI())
 							null
-							null
+							this_flow
 						)
-						
 					else
 						#TODO: test for parent id
-						this()
+						this_flow()
 				null
 				->
 					callback(null, res.rowsAffected)
