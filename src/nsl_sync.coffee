@@ -57,7 +57,6 @@ class NSLSync extends NSLCore
 		
 		super dbname, options, ->
 			self.create_table schema, (err, res) ->
-				sys.debug("hello")
 				return callback(err) if err?
 				callback(null, self)
 			
