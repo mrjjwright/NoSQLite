@@ -5,7 +5,6 @@ nosqlite: require("../lib/nosqlite").nosqlite
 sys: require "sys"
 
 errorHandler: (err, req, res, next) ->
-	sys.debug(sys.inspect(err))
 	res.writeHead(200, { 'Content-Type': 'text/plain' })
 	res.end(JSON.stringify(err));
 
@@ -13,7 +12,7 @@ module.exports: require('connect').createServer([
 	{ 
 		module: {
 			handle: (req, res, next) ->
-				db_file: "./test/test_sync2.db"
+				db_file: "./test/test_sync.db"
 				response: {
 					objs: []
 					gimme: []

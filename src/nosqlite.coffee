@@ -314,7 +314,8 @@ class NSLCore
 					(transaction, the_srs) ->
 						srs: the_srs
 					(transaction, err) ->
-						return callback(err) if err?
+						callback(err) if err?
+						return true
 				)
 			null
 			(transaction) ->

@@ -273,7 +273,7 @@ class NSLSync extends NSLCore
 			
 	# Sends any objs over
 	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->
-		@objs_in_bucket bucket, (err, objs) ->
+		@objs_in_bucket bucket, exclude_bucket, (err, objs) ->
 			if objs?.length > 0
 				req_or_res.objs.push(objs)
 				_.flatten(req_or_res.objs)
