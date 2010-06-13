@@ -14,6 +14,7 @@ if not window? and require?
 	# Running in a CommonJS environment like Node.js
 	# A webdb_provider is an object that wraps
 	# another SQLite driver with an HTML 5 web db interface
+	require.paths.unshift "vendor"
 	webdb_provider: require("webdb_sqlite")
 	sys: require("sys")
 	require("underscore")

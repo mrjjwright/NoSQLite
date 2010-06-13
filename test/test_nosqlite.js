@@ -66,7 +66,7 @@
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {
-      var _a, _b, i, log, log1, log_desc, logs, schema;
+      var i, log, log1, log_desc, logs, schema;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -87,8 +87,7 @@
         }
       };
       logs = [];
-      _a = 0; _b = 100;
-      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
+      for (i = 0; i <= 100; i += 1) {
         log1 = _.clone(log);
         log1.text = ("hello" + (i));
         logs.push(log1);
@@ -311,7 +310,7 @@
     remove_file(db_file);
     options = {};
     db = nosqlite.open(db_file, function() {
-      var _a, _b, i, log, logs;
+      var i, log, logs;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -332,8 +331,7 @@
         }
       };
       logs = [];
-      _a = 1; _b = 200000;
-      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
+      for (i = 1; i <= 200000; i += 1) {
         logs.push(_.clone(log));
       }
       return db.save("log", logs, function(err, res) {

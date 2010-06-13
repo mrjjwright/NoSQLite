@@ -7,13 +7,13 @@ sys: require "sys"
 errorHandler: (err, req, res, next) ->
 	sys.debug(sys.inspect(err))
 	res.writeHead(200, { 'Content-Type': 'text/plain' })
-	res.end('shit! im broken');
+	res.end(JSON.stringify(err));
 
 module.exports: require('connect').createServer([
 	{ 
 		module: {
 			handle: (req, res, next) ->
-				db_file: "./test/test_sync.db"
+				db_file: "./test/test_sync2.db"
 				response: {
 					objs: []
 					gimme: []
@@ -24,7 +24,7 @@ module.exports: require('connect').createServer([
 					gimme: []
 				}
 				db: nosqlite.open db_file, {sync_mode: true},  (err, db) ->
-					next(err)
+					return next(err) if err?
 					db.pull_response request, response, (err) ->
 						if err? then next(err)
 						res.writeHead(200, { 'Content-Type': 'application/json' })

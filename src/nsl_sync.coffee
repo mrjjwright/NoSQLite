@@ -54,8 +54,8 @@ class NSLSync extends NSLCore
 				
 			}
 		]
-		
-		super dbname, options, ->
+		super dbname, options, (err, db) ->
+			return callback(err) if err?
 			self.create_table schema, (err, res) ->
 				return callback(err) if err?
 				callback(null, self)
