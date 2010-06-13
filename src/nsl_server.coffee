@@ -38,7 +38,7 @@ listen: (port, host) ->
 					self.write_res(response, new Error("Unable to parse HTTP body as JSON.  Make sure it is valid JSON.  Error: " + error.message))
 									
 			try
-				switch url.query.method
+				switch url.query.nsl_method
 					when "fetch" 
 						remote_head: url.query.remote_head
 						sys.debug("remote_head: " + typeof remote_head) 

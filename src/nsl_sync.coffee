@@ -57,6 +57,7 @@ class NSLSync extends NSLCore
 		
 		super dbname, options, ->
 			self.create_table schema, (err, res) ->
+				sys.debug("hello")
 				return callback(err) if err?
 				callback(null, self)
 			
@@ -145,7 +146,7 @@ class NSLSync extends NSLCore
 			
 	# Sends all the objs requested in the gimme part  		
 	send_requested_objs: (req, res, callback) ->
-		return if req.gimme.length is 0
+		return callback() if req.gimme.length is 0
 		#TODO: security, private, shunned checks on the uuids?
 		uuids: req.gimme.join(",")
 		nosqlite.find "SELECT table, uuid, content FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
@@ -168,7 +169,7 @@ class NSLSync extends NSLCore
 		self: this
 		self.objs_in_bucket "nsl_unclustered", (err, unclustered) ->
 			if err? then throw err
-			if unclustered.length >= NSLSync.CLUSTER_THRESHOLD
+			if unclustered?.length >= NSLSync.CLUSTER_THRESHOLD
 
 				# delete all records from unclustered
 				# and insert the clustered
@@ -186,10 +187,12 @@ class NSLSync extends NSLCore
 							}
 						]
 					}
-									 
+					sys.debug(sys.inspect(cluster_desc))				 
 					self.save_objs cluster_desc, (err, res)->
 						throw err if err?
 						callback(null, res) if callback?
+			else
+				callback()
 	
 	# Returns the nsl_obj if it exists.
 	# 
@@ -271,11 +274,11 @@ class NSLSync extends NSLCore
 			
 	# Sends any objs over
 	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->
-		objs_in_bucket bucket, (err, objs)->
-			if objs.length > 0
+		@objs_in_bucket bucket, (err, objs) ->
+			if objs?.length > 0
 				req_or_res.objs.push(objs)
 				_.flatten(req_or_res.objs)
-			callback(null, objs.length)
+			callback(null, objs?.length)
 	
 	
 	# Pulls from a remote node
@@ -317,21 +320,20 @@ class NSLSync extends NSLCore
 	# 
 	# callback will be called when this method is done writing
 	pull_response: (req, res, callback) ->
+		self: this
 		flow.exec(
 			->
 				# Take this opportunity to make a cluster if we need to.
 				# This choice of a place to make a cluster favors 
 				# master-slave like configurations, but works for any configurations
-				make_cluster(this)
+				self.make_cluster(this)
 			(err) ->	
 				# send all the objs requested
-				send_requested_objs(req, res, this)
+				self.send_requested_objs(req, res, this)
 			(err) ->
 				# get all objs in unclustered not in phantom
-				send_objs_in_bucket(req, "unclustered", "phantom", false, this)
-			(err, unclustered) ->
-				# send these to the local db
-				res.write(unclustered)
+				self.send_objs_in_bucket(req, "nsl_unclustered", "nsl_phantom",  this)
+			(err, num_sent) ->
 				callback()
 		)
 	
@@ -342,17 +344,17 @@ class NSLSync extends NSLCore
 		flow.exec(
 			->
 				# get all obj that have never before been sent
-				send_objs_in_bucket(req, "unsent", this)
+				send_objs_in_bucket(req, "nsl_unsent", this)
 			(err, unsent) ->
 				# send unsent items
 				req.write(unsent)
 				# get all objects in unclustered not in phantom
-				objs_in_bucket("unclustered", this)
+				objs_in_bucket("nsl_unclustered", this)
 			(err, unclustered) ->
 				req.write(unclustered)
 				req.send(this)
 			(err, res) ->
-			
+				callback()
 		)
 	
 	hash_obj: (obj) ->

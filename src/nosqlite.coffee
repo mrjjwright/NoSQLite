@@ -55,7 +55,8 @@ class NSLCore
 		@UNRECOGNIZED_ERROR: 99
 		self: this
 		self.db: webdb_provider.openDatabase db_name, '1.0', 'Offline document storage', 5*1024*1024, (db) ->
-			self.create_table {table: "last_insert", rowid_name: "row_id", objs: [{row_id: null}]}, ->
+			self.create_table {table: "last_insert", rowid_name: "row_id", objs: [{row_id: null}]}, (err) ->
+				return callback(err) if err?
 				self.execute "insert into last_insert values (-1)", (err, res) ->
 					return callback(err) if err?
 					return callback(null, self) if callback?
@@ -138,14 +139,15 @@ class NSLCore
 							null
 							this
 							(transaction, err) ->
-								return callback(err)
+								return false
 						)
 					null
 					null
 				)
-			null
+			(err) ->
+				return callback(err) if callback?
 			(transaction) ->
-						return callback() if callback?
+				return callback() if callback?
 		)
 		
 	# Saves an object or objects in SQLite.
@@ -246,12 +248,11 @@ class NSLCore
 									)
 							
 			(err) ->
-				sys.debug(sys.inspect(err))
-				self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
+				return callback(err)
 			(transaction) ->
 				# oddly browsers, don't call the method above
 				# when an error occurs
-				if current_err? then return self.fix_save(current_err, current_obj_desc, current_obj, callback, save_func, save_args)
+				if current_err? then return callback(current_err)
 				if callback? then return callback(null, res)
 		)
 
