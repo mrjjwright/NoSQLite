@@ -55,14 +55,25 @@ class NSLCore
 		@CONSTRAINT_FAILED: 2
 		@UNRECOGNIZED_ERROR: 99
 		self: this
-		self.db: webdb_provider.openDatabase db_name, '1.0', 'Offline document storage', 5*1024*1024, (db) ->
-			self.create_table {table: "last_insert", rowid_name: "row_id", objs: [{row_id: null}]}, (err) ->
-				return callback(err) if err?
-				self.execute "insert into last_insert values (-1)", (err, res) ->
-					return callback(err) if err?
-					return callback(null, self) if callback?
+		self.db: webdb_provider.openDatabase db_name, '1.0', 'Offline document storage', 5*1024*1024, (err, db) ->
+			if err? then throw err
+			sys.debug("Database created")
+			callback(null, self)
 		return this
-				
+	
+	create_schema: (obj_descs, callback) ->
+		self: this
+		if _.isFunction(obj_descs)
+			callback: obj_descs
+		else
+			obj_descs: _.flatten([obj_descs, {table: "last_insert", rowid_name: "row_id", objs: [{row_id: null}]}])
+
+		self.create_table obj_descs, (err) ->
+			return callback(err) if err?
+			self.execute "insert into last_insert values (-1)", (err, res) ->
+				return callback(err) if err?
+				return callback(null, self) if callback?
+					
 	# A poss through to the underly db transaction
 	# in case the user wants to execute their own transactions
 	transaction: (start, failure, success) ->

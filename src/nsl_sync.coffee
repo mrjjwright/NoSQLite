@@ -8,67 +8,64 @@ else
 	NSLCore: window.NSLCore
 	hex_sha1: window.hex_sha1
 	
-class NSLSync extends NSLCore
+class NSLSync extends NSLCore		
 	
-	constructor: (dbname, options, callback) ->
-		self: this
-		#create a schema
-		schema: [
-			{
-				table: "nsl_phantom"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_unsent"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_unclustered"
-				rowid_name: "oid"
-				objs: [{oid: 1}]
-			}
-			{
-				table: "nsl_obj"
-				rowid_name: "oid"
-				objs: [
-					{
-						oid: 1
-						uuid: "text"
-						content: "text"
-						tbl_name: "text"
-						date_created: new Date().toISOString()
-					}
-				]
-			}
-			{
-				table: "nsl_cluster"
-				rowid_name: "cluster_id"
-				objs: [
-					{
-						objs: [] 
-						date_created: new Date().toISOString() 
-					}
-				]
-				
-			}
-		]
-		super dbname, options, (err, db) ->
-			return callback(err) if err?
-			self.create_table schema, (err, res) ->
-				return callback(err) if err?
-				callback(null, self)
+	@schema: [
+		{
+			table: "nsl_phantom"
+			rowid_name: "oid"
+			objs: [{oid: 1}]
+		}
+		{
+			table: "nsl_unsent"
+			rowid_name: "oid"
+			objs: [{oid: 1}]
+		}
+		{
+			table: "nsl_unclustered"
+			rowid_name: "oid"
+			objs: [{oid: 1}]
+		}
+		{
+			table: "nsl_obj"
+			rowid_name: "oid"
+			objs: [
+				{
+					oid: 1
+					uuid: "text"
+					tbl_name: "text"
+					date_created: new Date().toISOString()
+				}
+			]
+		}
+		{
+			table: "nsl_cluster"
+			rowid_name: "cluster_id"
+			objs: [
+				{
+					objs: [] 
+					date_created: new Date().toISOString() 
+				}
+			]
 			
-			
-	# Static variables
-	# How many objs should be in nsl_unclustered before we create a cluster
-	@CLUSTER_THRESHOLD: 1
+		}
+	]
 	
-	# Extends the core NoSQLite save_obj functions
-	# Creates a nsl_obj entry for each user obj 
+	create_schema: (obj_descs, callback) ->
+		if _.isFunction(obj_descs)
+			callback: obj_descs 
+			obj_descs: NSLSync.schema
+		else 
+			obj_descs: [obj_descs, NSLSync.schema]
+		super(obj_descs, callback)
+
+	# Num of objs that should be in nsl_unclustered before we create a cluster
+	@CLUSTER_THRESHOLD: 10
+	
+	# Creates a nsl_obj entry for each user obj. 
+	# Extends the core NoSQLite save_obj function.
 	#
-	# Stores an attribue called oid in the user table
+	# Stores an attribute called oid in the user table
 	# that references the nsl_obj
 	# Also stores auxilary objs needed for syncing  
 	save_objs: (the_obj_desc, callback) ->
@@ -331,7 +328,7 @@ class NSLSync extends NSLCore
 				self.send_requested_objs(req, res, this)
 			(err) ->
 				# get all objs in unclustered not in phantom
-				self.send_objs_in_bucket(req, "nsl_unclustered", "nsl_phantom",  this)
+				self.send_objs_in_bucket(res, "nsl_unclustered", "nsl_phantom",  this)
 			(err, num_sent) ->
 				callback()
 		)
@@ -339,7 +336,7 @@ class NSLSync extends NSLCore
 
 	# Push implmentation
 
-	push_local: (req, callback) ->
+	push: (req, callback) ->
 		flow.exec(
 			->
 				# get all obj that have never before been sent
@@ -355,6 +352,25 @@ class NSLSync extends NSLCore
 			(err, res) ->
 				callback()
 		)
+		
+	push_response: (req, res, callback) ->
+		self: this
+		flow.exec(
+			->
+				# Take this opportunity to make a cluster if we need to.
+				# This choice of a place to make a cluster favors 
+				# master-slave like configurations, but works for any configurations
+				self.make_cluster(this)
+			(err) ->	
+				# send all the objs requested
+				self.send_requested_objs(req, res, this)
+			(err) ->
+				# get all objs in unclustered not in phantom
+				self.send_objs_in_bucket(res, "nsl_unclustered", "nsl_phantom",  this)
+			(err, num_sent) ->
+				callback()
+		)
+		
 	
 	hash_obj: (obj) ->
 		return hex_sha1(JSON.stringify(obj))

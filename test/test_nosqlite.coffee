@@ -44,7 +44,7 @@ test_find: ->
 
 test_sync:  ->
 	db_file: "./test/test_sync.db"
-	remove_file(db_file)
+	#remove_file(db_file)
 	
 	
 	db: nosqlite.open db_file, {sync_mode: true},  ->
@@ -85,7 +85,7 @@ test_sync:  ->
 
 		flow.exec(
 			->
-				db.create_table(schema, this)
+				db.create_schema(schema, this)
 			(err) ->
 				if err? then throw err
 				db.save "log", logs, this

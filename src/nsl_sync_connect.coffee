@@ -3,42 +3,77 @@
 # This should be plugged into the NoSQLite Connect app server configuration
 nosqlite: require("../lib/nosqlite").nosqlite
 sys: require "sys"
+flow: require "flow"
 
 errorHandler: (err, req, res, next) ->
 	res.writeHead(200, { 'Content-Type': 'text/plain' })
-	res.end(JSON.stringify(err));
+	res.end(JSON.stringify(err))
+
+nsl_req: {}
+nsl_res: {}
+db: {}
 
 module.exports: require('connect').createServer([
 	{ 
 		module: {
 			handle: (req, res, next) ->
-				db_file: "./test/test_sync.db"
-				response: {
-					objs: []
-					gimme: []
-				}
-				request: {
-					type: "pull"
-					objs: []
-					gimme: []
-				}
-				db: nosqlite.open db_file, {sync_mode: true},  (err, db) ->
-					return next(err) if err?
-					db.pull_response request, response, (err) ->
-						if err? then next(err)
-						res.writeHead(200, { 'Content-Type': 'application/json' })
-						res.end(JSON.stringify(response))
+				req.body: ''
+				req.setEncoding('utf8')
+				req.addListener 'data', (chunk) ->
+					req.body += chunk
+				 
+				req.addListener 'end', ->
+					try
+						nsl_req: JSON.parse(req.body)
+					catch err
+						return next(new Error("Invalid JSON in body"))
+						
+					if not nsl_req.db?
+						return next(new Error("Missing db name"))
+					
+					db_file: "./test/${nsl_req.db}"
+					nsl_res: {
+						objs: []
+						gimme: []
+					}
+					db: nosqlite.open db_file, {sync_mode: true},  (err, db) ->
+						return next(err) if err?
+						return next()
 						
 			handleError: errorHandler
 		} 
-		route: '/pull' 
+		route: '/nsl' 
 	}
 	{ 
 		module: {
 			handle: (req, res, next) ->
-				res.writeHead(200, { 'Content-Type': 'text/plain' })
-				res.end("It worked!")
+				db.pull_response nsl_req, nsl_res, (err) ->
+					return next(err) if err?
+					return next()
+
 			handleError: errorHandler
 		}
+		route: "/nsl/pull"
+	}
+	{ 
+		module: {
+			handle: (req, res, next) ->
+				db.push_response nsl_req, nsl_res, (err) ->
+					return next(err) if err?
+					return next()
+
+			handleError: errorHandler
+		}
+		route: "/nsl/push"
+	}
+	{ 
+		module: {
+			handle: (req, res, next) ->
+				res.writeHead(200, { 'Content-Type': 'application/json' })
+				res.end(JSON.stringify(nsl_res))
+
+			handleError: errorHandler
+		}
+		route: "/nsl"
 	}
 ])

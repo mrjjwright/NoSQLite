@@ -62,7 +62,7 @@
   test_sync = function() {
     var db, db_file;
     db_file = "./test/test_sync.db";
-    remove_file(db_file);
+    //remove_file(db_file)
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {
@@ -104,7 +104,7 @@
         }
       ];
       return flow.exec(function() {
-        return db.create_table(schema, this);
+        return db.create_schema(schema, this);
       }, function(err) {
         if ((typeof err !== "undefined" && err !== null)) {
           throw err;
