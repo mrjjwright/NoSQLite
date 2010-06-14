@@ -1,4 +1,3 @@
-require.paths.unshift "vendor"
 sys: require "sys"
 nosqlite: require("../lib/nosqlite").nosqlite
 fs: require "fs"

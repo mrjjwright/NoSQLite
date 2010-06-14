@@ -1,6 +1,5 @@
 (function(){
   var assert, flow, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_sync, test_update_object;
-  require.paths.unshift("vendor");
   sys = require("sys");
   nosqlite = require("../lib/nosqlite").nosqlite;
   fs = require("fs");
@@ -66,7 +65,7 @@
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {
-      var i, log, log1, log_desc, logs, schema;
+      var _a, _b, i, log, log1, log_desc, logs, schema;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -87,7 +86,8 @@
         }
       };
       logs = [];
-      for (i = 0; i <= 100; i += 1) {
+      _a = 0; _b = 100;
+      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         log1 = _.clone(log);
         log1.text = ("hello" + (i));
         logs.push(log1);
@@ -310,7 +310,7 @@
     remove_file(db_file);
     options = {};
     db = nosqlite.open(db_file, function() {
-      var i, log, logs;
+      var _a, _b, i, log, logs;
       log = {
         text: "hello",
         occurred_at: new Date().getTime(),
@@ -331,7 +331,8 @@
         }
       };
       logs = [];
-      for (i = 1; i <= 200000; i += 1) {
+      _a = 1; _b = 200000;
+      for (i = _a; (_a <= _b ? i <= _b : i >= _b); (_a <= _b ? i += 1 : i -= 1)) {
         logs.push(_.clone(log));
       }
       return db.save("log", logs, function(err, res) {

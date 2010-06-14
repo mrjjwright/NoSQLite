@@ -4,7 +4,7 @@
 module.exports: require('connect').createServer([
 	{ filter: 'log', format: ':remote-addr :method :url :status :res[Content-Length] :response-timems' }
 	{ filter: 'response-time' }
-	{ module: require('./nsl_sync_connect') }
+	{ module: require('./sync_app') }
 	{ module: {
 		handle: (req, res, next) ->
 			res.writeHead(200, { 'Content-Type': 'text/plain' })

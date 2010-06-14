@@ -1,9 +1,9 @@
 # Syncing module
 if not window?
 	sys: require "sys"
-	NSLCore: require("./nosqlite").NSLCore
-	hex_sha1: require("../vendor/sha1").hex_sha1
-	flow: require("../vendor/flow")
+	NSLCore: require("./index").NSLCore
+	hex_sha1: require("sha1").hex_sha1
+	flow: require("flow")
 	http_client: require "request"
 else
 	NSLCore: window.NSLCore

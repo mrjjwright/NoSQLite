@@ -14,7 +14,6 @@ if not window? and require?
 	# Running in a CommonJS environment like Node.js
 	# A webdb_provider is an object that wraps
 	# another SQLite driver with an HTML 5 web db interface
-	require.paths.unshift "vendor"
 	webdb_provider: require("webdb_sqlite")
 	sys: require("sys")
 	require("underscore")
@@ -389,7 +388,7 @@ nosqlite: {
 		callback: if _.isFunction(options) then options else callback
 		if options?.sync_mode? is true
 			if not window?
-				NSLSync: require("./nsl_sync").NSLSync
+				NSLSync: require("./sync").NSLSync
 			else
 				NSLSync: window.NSLSync
 			nsl: new NSLSync(name, options, callback)
@@ -405,7 +404,7 @@ if window?
 	window.nosqlite: nosqlite
 	window.NSLCore: NSLCore
 else
-	NSLCore.prototype.sql: (require "./sqlite_sql").sqlite_sql
+	NSLCore.prototype.sql: (require "./sql").sqlite_sql
 	exports.nosqlite: nosqlite
 	exports.NSLCore: NSLCore
 	
