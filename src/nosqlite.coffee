@@ -70,8 +70,7 @@ class NSLCore
 
 		self.create_table obj_descs, (err) ->
 			return callback(err) if err?
-			self.execute "insert into last_insert values (-1)", (err, res) ->
-				return callback(err) if err?
+			self.execute "insert into last_insert values (0)", (err, res) ->
 				return callback(null, self) if callback?
 					
 	# A poss through to the underly db transaction
@@ -231,8 +230,13 @@ class NSLCore
 				for obj_desc in obj_descs
 					if not obj_desc.objs? or not _.isArray(obj_desc.objs)
 						throw Error("Each obj_desc should have an objs array on it")
+					if obj_desc.ignore_constraint_errors is true
+						insert_options.ignore: true
+					else
+						insert_options.ignore: false
+						
 					for obj in obj_desc.objs
-						insert_sql: self.sql.insert(obj_desc.table, obj)
+						insert_sql: self.sql.insert(obj_desc.table, obj, insert_options)
 						transaction.executeSql(
 							insert_sql.index_placeholder
 							insert_sql.bindings

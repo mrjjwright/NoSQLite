@@ -287,6 +287,7 @@ class NSLSync extends NSLCore
 	
 	# Pulls from a remote node
 	pull: (url, db, callback) ->
+		sys.puts "Pulling from ${url}"
 		self: this
 		# construct a pull request
 		req: {
@@ -305,9 +306,9 @@ class NSLSync extends NSLCore
 				(err, objs) ->
 					throw err if err?
 					if not first_cycle and not objs?
-						return callback(null)
+						sys.puts "Pull complete"
+						return callback()
 					else if objs?.length > 0
-						sys.debug(sys.inspect("found objects"))
 						req.gimme.push(_.pluck(objs, "uuid"))
 					first_cycle: false
 					# send over the request
@@ -320,7 +321,10 @@ class NSLSync extends NSLCore
 					# store these objs if needed, this creates phantoms
 					# for never before seen objs
 					res: JSON.parse(body)
-					self.store_objs(res.objs, this)
+					if res.objs?.length > 0
+						sys.puts "Received ${res.objs.length} objs from remote"
+						self.store_objs(res.objs, this)
+					else this()
 					# start over
 				(err, results) ->
 					throw err if err?

@@ -39,10 +39,11 @@ class SQL
 	insert: (table, obj, options) ->
 		sql: "insert "
 		sql: sql + " or replace " if options?.replace? is true
+		sql: sql + " or ignore " if options?.ignore? is true		
 		sql: sql + "into " +  @sql_name(table)
 		question_marks: []
 		names: []
-		if options?.rowid_sql?
+		if options?.rowid_sql? and options?.rowid_name?
 			@columns.push(options.rowid_name)
 			question_marks.push("(${options.rowid_sql})")
 			

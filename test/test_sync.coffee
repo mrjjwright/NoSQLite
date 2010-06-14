@@ -14,7 +14,7 @@ remove_file: (file) ->
 
 test_pull: ->
 	db_file: "./test/test_pull.db"
-	remove_file(db_file)
+	#remove_file(db_file)
 	
 	db: nosqlite.open db_file, {sync_mode: true},  ->
 		log: {
