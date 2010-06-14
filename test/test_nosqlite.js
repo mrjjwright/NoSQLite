@@ -62,7 +62,7 @@
   test_sync = function() {
     var db, db_file;
     db_file = "./test/test_sync.db";
-    //remove_file(db_file)
+    remove_file(db_file);
     db = nosqlite.open(db_file, {
       sync_mode: true
     }, function() {

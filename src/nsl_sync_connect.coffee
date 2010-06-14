@@ -4,6 +4,7 @@
 nosqlite: require("../lib/nosqlite").nosqlite
 sys: require "sys"
 flow: require "flow"
+require "underscore"
 
 errorHandler: (err, req, res, next) ->
 	res.writeHead(200, { 'Content-Type': 'text/plain' })
@@ -27,7 +28,6 @@ module.exports: require('connect').createServer([
 						nsl_req: JSON.parse(req.body)
 					catch err
 						return next(new Error("Invalid JSON in body"))
-						
 					if not nsl_req.db?
 						return next(new Error("Missing db name"))
 					
@@ -53,7 +53,7 @@ module.exports: require('connect').createServer([
 
 			handleError: errorHandler
 		}
-		route: "/nsl/pull"
+		route: '/nsl/pull'
 	}
 	{ 
 		module: {
@@ -69,6 +69,8 @@ module.exports: require('connect').createServer([
 	{ 
 		module: {
 			handle: (req, res, next) ->
+				nsl_res.objs: _.flatten(nsl_res.objs)
+				nsl_res.gimme: _.flatten(nsl_res.gimme)
 				res.writeHead(200, { 'Content-Type': 'application/json' })
 				res.end(JSON.stringify(nsl_res))
 

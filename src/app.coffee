@@ -8,7 +8,7 @@ module.exports: require('connect').createServer([
 	{ module: {
 		handle: (req, res, next) ->
 			res.writeHead(200, { 'Content-Type': 'text/plain' })
-			res.end('GET /hello or /world');
+			res.end('No more NoSQLite handler');
 		}
 		
 	}

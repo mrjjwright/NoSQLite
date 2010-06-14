@@ -44,7 +44,7 @@ test_find: ->
 
 test_sync:  ->
 	db_file: "./test/test_sync.db"
-	#remove_file(db_file)
+	remove_file(db_file)
 	
 	
 	db: nosqlite.open db_file, {sync_mode: true},  ->

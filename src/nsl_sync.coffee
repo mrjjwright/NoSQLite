@@ -4,6 +4,7 @@ if not window?
 	NSLCore: require("./nosqlite").NSLCore
 	hex_sha1: require("../vendor/sha1").hex_sha1
 	flow: require("../vendor/flow")
+	http_client: require "request"
 else
 	NSLCore: window.NSLCore
 	hex_sha1: window.hex_sha1
@@ -34,6 +35,7 @@ class NSLSync extends NSLCore
 					oid: 1
 					uuid: "text"
 					tbl_name: "text"
+					content: "text"
 					date_created: new Date().toISOString()
 				}
 			]
@@ -126,9 +128,7 @@ class NSLSync extends NSLCore
 		sql: "SELECT * FROM ${bucket} JOIN nsl_obj USING(oid)"
 		if exclude_bucket?
 			sql += "WHERE NOT EXISTS (SELECT 1 FROM ${exclude_bucket} WHERE oid=nsl_obj.oid)"
-		self.find sql, (err, res) ->
-			if err? then return callback(err)
-			return callback(null, res)
+		self.find sql, callback
 	
 	# Returns the complete obj from it's flattened table 		
 	blowup_objs_in_bucket: (bucket, exclude_bucket, callback) ->
@@ -144,10 +144,14 @@ class NSLSync extends NSLCore
 	send_requested_objs: (req, res, callback) ->
 		return callback() if req.gimme.length is 0
 		#TODO: security, private, shunned checks on the uuids?
-		uuids: req.gimme.join(",")
-		nosqlite.find "SELECT table, uuid, content FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
+		uuids: for uuid in req.gimme
+			JSON.stringify(uuid)
+		uuids: uuids.join(",")
+		@find "SELECT * FROM nsl_obj WHERE uuid in (${uuids}) ", (err, objs)->
+			sys.debug(sys.inspect(err))
 			if err? then return callback(err)
-			req.objs.push(objs)
+			res.objs.push(objs)
+			res.objs: _.flatten(res.objs)
 			callback()
 			
 			
@@ -183,7 +187,6 @@ class NSLSync extends NSLCore
 							}
 						]
 					}
-					sys.debug(sys.inspect(cluster_desc))				 
 					self.save_objs cluster_desc, (err, res)->
 						throw err if err?
 						callback(null, res) if callback?
@@ -199,7 +202,10 @@ class NSLSync extends NSLCore
 		self: this
 		@find "nsl_obj", {uuid: uuid}, (err, obj) ->
 			return callback(err) if err?
-			if obj? then return callback(null, obj)
+			if obj?
+				# delete obj from phantom
+				self.execute "DELETE FROM nsl_phantom WHERE oid = ${obj[0].oid}", (err, results) ->
+					callback(null, obj[0])
 			else if phantomize then self.create_phantom(uuid, callback)
 			else callback()	
 				
@@ -242,7 +248,7 @@ class NSLSync extends NSLCore
 		obj_desc: {
 			table: "nsl_obj"
 			rowid_name: "oid"
-			objs: objs
+			objs: _.flatten(objs)
 			ignore_constraint_errors: true
 		}
 		@save_objs obj_desc, (err, res) ->
@@ -255,8 +261,9 @@ class NSLSync extends NSLCore
 						flow.serialForEach(
 							obj.content.objs
 							(uuid) ->
-								self.uuid_to_obj(uuid, true, this.MULTI())
-							null
+								self.uuid_to_obj(uuid, true, this)
+							(err, res) ->
+								throw err if err?
 							this_flow
 						)
 					else
@@ -269,44 +276,54 @@ class NSLSync extends NSLCore
 			
 			
 	# Sends any objs over
-	send_objs_in_bucket: (req_or_res, bucket, exclude_bucket, callback)->
+	send_objs_in_bucket: (arr, bucket, exclude_bucket, callback) ->
 		@objs_in_bucket bucket, exclude_bucket, (err, objs) ->
+			callback(err) if err?
 			if objs?.length > 0
-				req_or_res.objs.push(objs)
-				_.flatten(req_or_res.objs)
+				arr.push(objs)
+				arr: _.flatten(arr)
 			callback(null, objs?.length)
 	
 	
 	# Pulls from a remote node
-	pull: (url, callback) ->
-		
+	pull: (url, db, callback) ->
+		self: this
 		# construct a pull request
 		req: {
-			type: "pull"
+			db: db
 			objs: []
 			gimme: []
 		}
 		
 		# keep track of how many times we have cycled through this
-		first_cycle: false
+		first_cycle: true
 		
 		pull_cycle:  ->
 			flow.exec(
 				->
-					send_objs_in_bucket(req, "nsl_phantom", this)
-				(err, req) ->
-					# exit the flow if no more objs needed
-					if not first_cycle and req.gimme.length is 0
+					self.objs_in_bucket("nsl_phantom", null, this)
+				(err, objs) ->
+					throw err if err?
+					if not first_cycle and not objs?
 						return callback(null)
-					if first_cycle is true then first_cycle: false
+					else if objs?.length > 0
+						sys.debug(sys.inspect("found objects"))
+						req.gimme.push(_.pluck(objs, "uuid"))
+					first_cycle: false
 					# send over the request
-					http_client.post(url, req, this)
-				(err, res) ->
+					req.objs: _.flatten(req.objs)
+					req.gimme: _.flatten(req.gimme)
+					http_client({uri: url, method: "POST", body: JSON.stringify(req)}, this)
+				(err, http_res, body) ->
+					throw err if err?
 					# the response came back
 					# store these objs if needed, this creates phantoms
 					# for never before seen objs
-					store_objs(res.objs, this)
+					res: JSON.parse(body)
+					self.store_objs(res.objs, this)
 					# start over
+				(err, results) ->
+					throw err if err?
 					pull_cycle()
 			)
 		pull_cycle()
@@ -328,7 +345,7 @@ class NSLSync extends NSLCore
 				self.send_requested_objs(req, res, this)
 			(err) ->
 				# get all objs in unclustered not in phantom
-				self.send_objs_in_bucket(res, "nsl_unclustered", "nsl_phantom",  this)
+				self.send_objs_in_bucket(res.objs, "nsl_unclustered", "nsl_phantom",  this)
 			(err, num_sent) ->
 				callback()
 		)
@@ -340,7 +357,7 @@ class NSLSync extends NSLCore
 		flow.exec(
 			->
 				# get all obj that have never before been sent
-				send_objs_in_bucket(req, "nsl_unsent", this)
+				send_objs_in_bucket(req.objs, "nsl_unsent", null, this)
 			(err, unsent) ->
 				# send unsent items
 				req.write(unsent)
@@ -366,7 +383,7 @@ class NSLSync extends NSLCore
 				self.send_requested_objs(req, res, this)
 			(err) ->
 				# get all objs in unclustered not in phantom
-				self.send_objs_in_bucket(res, "nsl_unclustered", "nsl_phantom",  this)
+				self.send_objs_in_bucket(res.objs, "nsl_unclustered", "nsl_phantom",  this)
 			(err, num_sent) ->
 				callback()
 		)
