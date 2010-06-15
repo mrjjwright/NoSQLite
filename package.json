@@ -1,0 +1,17 @@
+{ "name" : "nosqlite" , 
+"description" : "Store objects in SQLite easily and sync them git style over HTTP and JSON." , 
+"tags" : ["http", "db", "sync", "sqlite"] , 
+"version" : "0.3.0", 
+"author" : "John J. Wright <mrjjwright@gmail.com>",
+"directories" : { "lib" : "lib" } , 
+"dependencies":
+  { "underscore" : "1.0.3"
+  , "flow" : "1.0.0"
+  , "request" : "0.9.1"
+  , "connect" : "0.0.1"
+  }
+,
+"repository" : { "type" : "git" , "url" : "http://github.com/mrjjwright/nosqlite.git" } , 
+"bugs" : { "web" : "http://github.com/mrjjwright/nosqlite/issues" } , 
+"engines" : ["node >=0.1.90"] , 
+"main" : "./lib/index.js" }

@@ -1,6 +1,6 @@
 require.paths.unshift "vendor"
 sys: require "sys"
-nosqlite: require("../lib/nosqlite").nosqlite
+nosqlite: require("../lib/index")
 fs: require "fs"
 flow: require "flow"
 assert: require "assert"

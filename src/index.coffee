@@ -127,6 +127,8 @@ class NSLCore
 									# ignore errors from filters
 							res.push(obj)
 						res: undefined if res.length is 0
+						if res?.length is 1
+							res: res[0]
 						callback(null, res)
 					(transaction, err) ->
 						if err? then return callback(err)
@@ -405,8 +407,8 @@ if window?
 	window.NSLCore: NSLCore
 else
 	NSLCore.prototype.sql: (require "./sql").sqlite_sql
-	exports.nosqlite: nosqlite
-	exports.NSLCore: NSLCore
+	module.exports: nosqlite
+	module.exports.NSLCore: NSLCore
 	
 # In a browser enviroment, the rest of the NoSQLite functions are 
 # bundled below here in a single JS file

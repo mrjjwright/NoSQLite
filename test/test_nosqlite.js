@@ -1,7 +1,7 @@
 (function(){
   var assert, flow, fs, nosqlite, peer1, peer2, remove_file, sys, test_add_remote, test_fetch_commits, test_find, test_find_or_save, test_migration, test_objects_since_commit, test_pull, test_pull_again, test_save, test_save_bulk, test_save_cd, test_save_multiple, test_save_web, test_sync, test_update_object;
   sys = require("sys");
-  nosqlite = require("../lib/nosqlite").nosqlite;
+  nosqlite = require("../lib/index");
   fs = require("fs");
   flow = require("flow");
   assert = require("assert");

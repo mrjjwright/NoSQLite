@@ -12,6 +12,7 @@ class SQL
 		if (not predicate?) or _.isEmpty(predicate)
 			@escaped: sql
 			@placeholder: sql
+			@index_placeholder: sql
 			return this
 			
 		sql += " where"

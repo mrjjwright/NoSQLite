@@ -2,7 +2,7 @@
 if not window?
 	sys: require "sys"
 	NSLCore: require("./index").NSLCore
-	hex_sha1: require("sha1").hex_sha1
+	hex_sha1: require("./sha1").hex_sha1
 	flow: require("flow")
 	http_client: require "request"
 else
